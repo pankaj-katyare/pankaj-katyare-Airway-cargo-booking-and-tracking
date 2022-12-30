@@ -1,23 +1,23 @@
 version: '3.3'
 services:
-  app:
-    container_name: gin_demo
-    build: .
-    ports:
-      - ${EXPOSE_PORT}:${PORT}
-    restart: on-failure
-    volumes:
-      - ./:/app/
-    depends_on:
-      - postgres
-    env_file:
-      - .env
-    environment:
-      WAIT_HOSTS: postgres:${DB_PORT}
-      WAIT_BEFORE_HOSTS: 15
-      WAIT_SLEEP_INTERVAL: 3
-    networks:
-      - airway-cargo-network
+  # app:
+  #   container_name: gin_demo
+  #   build: .
+  #   ports:
+  #     - ${EXPOSE_PORT}:${PORT}
+  #   restart: on-failure
+  #   volumes:
+  #     - ./:/app/
+  #   depends_on:
+  #     - postgres
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     WAIT_HOSTS: postgres:${DB_PORT}
+  #     WAIT_BEFORE_HOSTS: 30
+  #     WAIT_SLEEP_INTERVAL: 6
+  #   networks:
+  #     - airway-cargo-network
 
   postgres:
     image: postgres:latest

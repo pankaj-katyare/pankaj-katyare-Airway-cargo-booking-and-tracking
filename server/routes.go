@@ -2,23 +2,16 @@ package server
 
 import (
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/handler"
-	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/provider"
-
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func ConfigureRoutes(server *Server) {
 
-	quotesHandler := handler.QuoteHandler{DB: server.db}
+	quotesHandler := handler.NewQuoteHandler(server.db)
+	api := server.engine.RouterGroup.Group("/api")
+	api.POST("/quote", quotesHandler.RequestQuote)
 
-	jwtAuth := provider.NewJwtAuth(server.db)
+	// api.PUT("/update_quote", quotesHandler.UpdateQuote)
+	// api.GET("/quote", quotesHandler.GetQuoteByID)
+	// api.GET("/quotes", quotesHandler.GetAllQuote)
 
-	server.engine.POST("/login", jwtAuth.Middleware().LoginHandler)
-	server.engine.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-
-	needsAuth := server.engine.Group("/").Use(jwtAuth.Middleware().MiddlewareFunc())
-	needsAuth.GET("/refresh", jwtAuth.Middleware().RefreshHandler)
-
-	needsAuth.POST("/quote", quotesHandler.RequestQuote)
 }

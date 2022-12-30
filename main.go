@@ -1,11 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 
-	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/docs"
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server"
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/db"
 
@@ -20,8 +18,6 @@ func main() {
 			log.Print(err)
 		}
 	}()
-
-	docs.SwaggerInfo.Host = fmt.Sprintf("%s:%s", os.Getenv("HOST"), os.Getenv("EXPOSE_PORT"))
 
 	app := server.NewServer(connection)
 	server.ConfigureRoutes(app)
