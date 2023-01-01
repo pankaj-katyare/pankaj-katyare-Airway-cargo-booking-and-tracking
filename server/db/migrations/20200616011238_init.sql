@@ -47,10 +47,12 @@ CREATE TABLE liners(
 CREATE TABLE account_details(
     id VARCHAR(60) PRIMARY KEY,
     name VARCHAR(100),
+    company_name VARCHAR(100),
     email VARCHAR(100),
     mobile VARCHAR(20),
     roles VARCHAR(30),
-    city VARCHAR(60) 
+    city VARCHAR(60),
+    is_registered boolean default FALSE
 );
 
 CREATE TABLE tasks(

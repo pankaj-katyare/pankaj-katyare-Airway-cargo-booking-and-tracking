@@ -10,7 +10,7 @@ INSERT INTO account_details (
 id, name, email, mobile, roles, city) 
 VALUES (
    $1,$2,$3,$4,$5, $6)
-RETURNING id, name, email, mobile, roles, city
+RETURNING id, name, company_name, email, mobile, roles, city, is_registered
 `
 
 type CreateAccountDetailsParams struct {
@@ -35,10 +35,12 @@ func (q *Queries) CreateAccountDetails(ctx context.Context, arg CreateAccountDet
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
+		&i.CompanyName,
 		&i.Email,
 		&i.Mobile,
 		&i.Roles,
 		&i.City,
+		&i.IsRegistered,
 	)
 	return i, err
 }
@@ -337,7 +339,7 @@ func (q *Queries) DeleteTask(ctx context.Context, id string) error {
 }
 
 const getAccountDetails = `-- name: GetAccountDetails :one
-SELECT id, name, email, mobile, roles, city FROM account_details
+SELECT id, name, company_name, email, mobile, roles, city, is_registered FROM account_details
 WHERE id = $1 LIMIT 1
 `
 
@@ -347,10 +349,12 @@ func (q *Queries) GetAccountDetails(ctx context.Context, id string) (AccountDeta
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
+		&i.CompanyName,
 		&i.Email,
 		&i.Mobile,
 		&i.Roles,
 		&i.City,
+		&i.IsRegistered,
 	)
 	return i, err
 }
@@ -505,7 +509,7 @@ func (q *Queries) GetTask(ctx context.Context, id string) (Task, error) {
 }
 
 const listAccountDetails = `-- name: ListAccountDetails :many
-SELECT id, name, email, mobile, roles, city FROM account_details
+SELECT id, name, company_name, email, mobile, roles, city, is_registered FROM account_details
 `
 
 func (q *Queries) ListAccountDetails(ctx context.Context) ([]AccountDetail, error) {
@@ -520,10 +524,12 @@ func (q *Queries) ListAccountDetails(ctx context.Context) ([]AccountDetail, erro
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
+			&i.CompanyName,
 			&i.Email,
 			&i.Mobile,
 			&i.Roles,
 			&i.City,
+			&i.IsRegistered,
 		); err != nil {
 			return nil, err
 		}
