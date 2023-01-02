@@ -7,29 +7,33 @@ import (
 
 const createAccountDetails = `-- name: CreateAccountDetails :one
 INSERT INTO account_details (
-id, name, email, mobile, roles, city) 
+id, name, company_name,  email, mobile, roles, city, password) 
 VALUES (
-   $1,$2,$3,$4,$5, $6)
-RETURNING id, name, company_name, email, mobile, roles, city, is_registered
+   $1,$2,$3,$4,$5, $6, $7, $8)
+RETURNING id, name, company_name, email, mobile, roles, city, password
 `
 
 type CreateAccountDetailsParams struct {
-	ID     string
-	Name   sql.NullString
-	Email  sql.NullString
-	Mobile sql.NullString
-	Roles  sql.NullString
-	City   sql.NullString
+	ID          string
+	Name        sql.NullString
+	CompanyName sql.NullString
+	Email       sql.NullString
+	Mobile      sql.NullString
+	Roles       sql.NullString
+	City        sql.NullString
+	Password    sql.NullString
 }
 
 func (q *Queries) CreateAccountDetails(ctx context.Context, arg CreateAccountDetailsParams) (AccountDetail, error) {
 	row := q.db.QueryRowContext(ctx, createAccountDetails,
 		arg.ID,
 		arg.Name,
+		arg.CompanyName,
 		arg.Email,
 		arg.Mobile,
 		arg.Roles,
 		arg.City,
+		arg.Password,
 	)
 	var i AccountDetail
 	err := row.Scan(
@@ -40,7 +44,7 @@ func (q *Queries) CreateAccountDetails(ctx context.Context, arg CreateAccountDet
 		&i.Mobile,
 		&i.Roles,
 		&i.City,
-		&i.IsRegistered,
+		&i.Password,
 	)
 	return i, err
 }
@@ -339,7 +343,7 @@ func (q *Queries) DeleteTask(ctx context.Context, id string) error {
 }
 
 const getAccountDetails = `-- name: GetAccountDetails :one
-SELECT id, name, company_name, email, mobile, roles, city, is_registered FROM account_details
+SELECT id, name, company_name, email, mobile, roles, city, password FROM account_details
 WHERE id = $1 LIMIT 1
 `
 
@@ -354,7 +358,7 @@ func (q *Queries) GetAccountDetails(ctx context.Context, id string) (AccountDeta
 		&i.Mobile,
 		&i.Roles,
 		&i.City,
-		&i.IsRegistered,
+		&i.Password,
 	)
 	return i, err
 }
@@ -436,6 +440,27 @@ func (q *Queries) GetLiner(ctx context.Context, id string) (Liner, error) {
 	return i, err
 }
 
+const getLoginDetails = `-- name: GetLoginDetails :one
+SELECT id, name, company_name, email, mobile, roles, city, password FROM account_details
+WHERE email = $1 LIMIT 1
+`
+
+func (q *Queries) GetLoginDetails(ctx context.Context, email sql.NullString) (AccountDetail, error) {
+	row := q.db.QueryRowContext(ctx, getLoginDetails, email)
+	var i AccountDetail
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CompanyName,
+		&i.Email,
+		&i.Mobile,
+		&i.Roles,
+		&i.City,
+		&i.Password,
+	)
+	return i, err
+}
+
 const getMilestone = `-- name: GetMilestone :one
 SELECT id, name FROM milestones
 WHERE id = $1 LIMIT 1
@@ -461,7 +486,7 @@ func (q *Queries) GetPartner(ctx context.Context, id string) (Partner, error) {
 }
 
 const getQuote = `-- name: GetQuote :one
-SELECT id, quote_type, customer_id, source, destination, door_pickup, door_address, door_delivery, delivery_address, liner_id, partner_id, validity, transmit_days, free_days, currency, buy, sell, partner_tax FROM quotes
+SELECT id, quote_type, customer_id, source, destination, door_pickup, door_address, door_delivery, delivery_address, liner_id, partner_id, validity, transmit_days, free_days, currency, buy, sell, partner_tax, procurement_id, sales_id FROM quotes
 WHERE id = $1 AND customer_id=$2 LIMIT 1
 `
 
@@ -492,6 +517,8 @@ func (q *Queries) GetQuote(ctx context.Context, arg GetQuoteParams) (Quote, erro
 		&i.Buy,
 		&i.Sell,
 		&i.PartnerTax,
+		&i.ProcurementID,
+		&i.SalesID,
 	)
 	return i, err
 }
@@ -509,7 +536,7 @@ func (q *Queries) GetTask(ctx context.Context, id string) (Task, error) {
 }
 
 const listAccountDetails = `-- name: ListAccountDetails :many
-SELECT id, name, company_name, email, mobile, roles, city, is_registered FROM account_details
+SELECT id, name, company_name, email, mobile, roles, city, password FROM account_details
 `
 
 func (q *Queries) ListAccountDetails(ctx context.Context) ([]AccountDetail, error) {
@@ -529,7 +556,7 @@ func (q *Queries) ListAccountDetails(ctx context.Context) ([]AccountDetail, erro
 			&i.Mobile,
 			&i.Roles,
 			&i.City,
-			&i.IsRegistered,
+			&i.Password,
 		); err != nil {
 			return nil, err
 		}
@@ -732,7 +759,7 @@ func (q *Queries) ListPartners(ctx context.Context) ([]Partner, error) {
 }
 
 const listQuotes = `-- name: ListQuotes :many
-SELECT id, quote_type, customer_id, source, destination, door_pickup, door_address, door_delivery, delivery_address, liner_id, partner_id, validity, transmit_days, free_days, currency, buy, sell, partner_tax FROM quotes
+SELECT id, quote_type, customer_id, source, destination, door_pickup, door_address, door_delivery, delivery_address, liner_id, partner_id, validity, transmit_days, free_days, currency, buy, sell, partner_tax, procurement_id, sales_id FROM quotes
 WHERE customer_id=$1
 `
 
@@ -764,6 +791,8 @@ func (q *Queries) ListQuotes(ctx context.Context, customerID string) ([]Quote, e
 			&i.Buy,
 			&i.Sell,
 			&i.PartnerTax,
+			&i.ProcurementID,
+			&i.SalesID,
 		); err != nil {
 			return nil, err
 		}
@@ -805,14 +834,40 @@ func (q *Queries) ListTasks(ctx context.Context) ([]Task, error) {
 	return items, nil
 }
 
+const login = `-- name: Login :one
+SELECT id, name, company_name, email, mobile, roles, city, password FROM account_details
+WHERE id = $1  and password = $2 LIMIT 1
+`
+
+type LoginParams struct {
+	ID       string
+	Password sql.NullString
+}
+
+func (q *Queries) Login(ctx context.Context, arg LoginParams) (AccountDetail, error) {
+	row := q.db.QueryRowContext(ctx, login, arg.ID, arg.Password)
+	var i AccountDetail
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.CompanyName,
+		&i.Email,
+		&i.Mobile,
+		&i.Roles,
+		&i.City,
+		&i.Password,
+	)
+	return i, err
+}
+
 const requestQuote = `-- name: RequestQuote :one
 INSERT INTO quotes (
     id,quote_type,customer_id,source,destination,door_pickup,door_address,
     door_delivery,delivery_address,liner_id,partner_id,validity,transmit_days,
-    free_days,currency,buy,sell,partner_tax) 
+    free_days,currency,buy,sell,partner_tax,procurement_id,sales_id) 
 VALUES (
-    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
-RETURNING id, quote_type, customer_id, source, destination, door_pickup, door_address, door_delivery, delivery_address, liner_id, partner_id, validity, transmit_days, free_days, currency, buy, sell, partner_tax
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+RETURNING id, quote_type, customer_id, source, destination, door_pickup, door_address, door_delivery, delivery_address, liner_id, partner_id, validity, transmit_days, free_days, currency, buy, sell, partner_tax, procurement_id, sales_id
 `
 
 type RequestQuoteParams struct {
@@ -834,6 +889,8 @@ type RequestQuoteParams struct {
 	Buy             sql.NullString
 	Sell            sql.NullString
 	PartnerTax      sql.NullString
+	ProcurementID   sql.NullString
+	SalesID         sql.NullString
 }
 
 func (q *Queries) RequestQuote(ctx context.Context, arg RequestQuoteParams) (Quote, error) {
@@ -856,6 +913,8 @@ func (q *Queries) RequestQuote(ctx context.Context, arg RequestQuoteParams) (Quo
 		arg.Buy,
 		arg.Sell,
 		arg.PartnerTax,
+		arg.ProcurementID,
+		arg.SalesID,
 	)
 	var i Quote
 	err := row.Scan(
@@ -877,6 +936,8 @@ func (q *Queries) RequestQuote(ctx context.Context, arg RequestQuoteParams) (Quo
 		&i.Buy,
 		&i.Sell,
 		&i.PartnerTax,
+		&i.ProcurementID,
+		&i.SalesID,
 	)
 	return i, err
 }
@@ -885,30 +946,36 @@ const updateAccountDetails = `-- name: UpdateAccountDetails :exec
 UPDATE account_details set 
     id = $1,
     name = $2,
-    email = $3,
-    mobile = $4,
-    roles = $5,
-    city = $6
+    company_name = $3,
+    email = $4,
+    mobile = $5,
+    roles = $6,
+    city = $7,
+    password = $8
 WHERE id = $1
 `
 
 type UpdateAccountDetailsParams struct {
-	ID     string
-	Name   sql.NullString
-	Email  sql.NullString
-	Mobile sql.NullString
-	Roles  sql.NullString
-	City   sql.NullString
+	ID          string
+	Name        sql.NullString
+	CompanyName sql.NullString
+	Email       sql.NullString
+	Mobile      sql.NullString
+	Roles       sql.NullString
+	City        sql.NullString
+	Password    sql.NullString
 }
 
 func (q *Queries) UpdateAccountDetails(ctx context.Context, arg UpdateAccountDetailsParams) error {
 	_, err := q.db.ExecContext(ctx, updateAccountDetails,
 		arg.ID,
 		arg.Name,
+		arg.CompanyName,
 		arg.Email,
 		arg.Mobile,
 		arg.Roles,
 		arg.City,
+		arg.Password,
 	)
 	return err
 }
@@ -1079,21 +1146,25 @@ UPDATE quotes set
     transmit_days = $7,
     free_days = $8,
     currency = $9,
-    partner_tax = $10
+    partner_tax = $10,
+    procurement_id = $11,
+    sales_id = $12
 WHERE id = $1
 `
 
 type UpdateQuoteParams struct {
-	ID           string
-	Buy          sql.NullString
-	Sell         sql.NullString
-	LinerID      sql.NullString
-	PartnerID    sql.NullString
-	Validity     sql.NullString
-	TransmitDays sql.NullString
-	FreeDays     sql.NullString
-	Currency     sql.NullString
-	PartnerTax   sql.NullString
+	ID            string
+	Buy           sql.NullString
+	Sell          sql.NullString
+	LinerID       sql.NullString
+	PartnerID     sql.NullString
+	Validity      sql.NullString
+	TransmitDays  sql.NullString
+	FreeDays      sql.NullString
+	Currency      sql.NullString
+	PartnerTax    sql.NullString
+	ProcurementID sql.NullString
+	SalesID       sql.NullString
 }
 
 func (q *Queries) UpdateQuote(ctx context.Context, arg UpdateQuoteParams) error {
@@ -1108,6 +1179,8 @@ func (q *Queries) UpdateQuote(ctx context.Context, arg UpdateQuoteParams) error 
 		arg.FreeDays,
 		arg.Currency,
 		arg.PartnerTax,
+		arg.ProcurementID,
+		arg.SalesID,
 	)
 	return err
 }

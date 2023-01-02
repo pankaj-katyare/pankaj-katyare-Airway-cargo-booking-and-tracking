@@ -17,7 +17,9 @@ CREATE TABLE quotes(
     currency VARCHAR(10),
     buy VARCHAR(20),
     sell VARCHAR(20),
-    partner_tax VARCHAR(20)
+    partner_tax VARCHAR(20),
+    procurement_id VARCHAR(60),
+    sales_id VARCHAR(60)
 );
 
 CREATE TABLE booking(
@@ -52,7 +54,7 @@ CREATE TABLE account_details(
     mobile VARCHAR(20),
     roles VARCHAR(30),
     city VARCHAR(60),
-    is_registered boolean default FALSE
+    password VARCHAR(60)
 );
 
 CREATE TABLE tasks(

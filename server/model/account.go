@@ -8,4 +8,10 @@ type Account struct {
 	Mobile      string `json:"mobile"`
 	Roles       string `json:"roles"`
 	City        string `json:"city"`
+	Password    string `json:"password"`
+}
+
+type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }

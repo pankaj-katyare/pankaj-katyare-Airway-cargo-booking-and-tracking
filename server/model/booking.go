@@ -3,7 +3,7 @@ package model
 type Booking struct {
 	Id               string `json:"id"`
 	BookingRequestId string `json:"booking_request_id"`
-	Status           string `json:"status"`
+	Status           string `json:"booking_status"`
 	CustomerId       string `json:"customer_id"`
 	TaskId           string `json:"task_id"`
 	QuoteId          string `json:"quote_id"`

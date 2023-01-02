@@ -71,141 +71,135 @@ func (handler QuoteHandler) RequestQuote(context *gin.Context) {
 	})
 }
 
-// func (handler QuoteHandler) GetQuoteByID(context *gin.Context) {
+func (handler QuoteHandler) GetQuoteByID(context *gin.Context) {
 
-// 	id := context.Request.URL.Query().Get("id")
-// 	if id == "" {
-// 		response.ErrorResponse(context, http.StatusNotFound, "ID not specified")
-// 		return
-// 	}
+	id := context.Request.URL.Query().Get("id")
+	customer_id := context.Request.URL.Query().Get("customer_id")
 
-// 	state, err := handler.queries.GetQuote(context,database.GetQuoteParams{ID: "", CustomerID: ""})
+	if id == "" {
+		response.ErrorResponse(context, http.StatusNotFound, "ID not specified")
+		return
+	}
+	if customer_id == "" {
+		response.ErrorResponse(context, http.StatusNotFound, "customer_id not specified")
+		return
+	}
 
-// 	quotes, err := handler.quotesDB.Select(context, map[string]interface{}{
-// 		"id": id,
-// 	}, nil, nil)
+	state, err := handler.queries.GetQuote(context, repository.GetQuoteParams{
+		ID:         id,
+		CustomerID: customer_id,
+	})
 
-// 	if err != nil {
-// 		response.ErrorResponse(context, http.StatusNotFound, err.Error())
-// 		return
-// 	}
+	if err != nil {
+		response.ErrorResponse(context, http.StatusNotFound, err.Error())
+		return
+	}
 
-// 	response.SuccessResponse(context, map[string]interface{}{
-// 		"code":    "success",
-// 		"message": "Quote Data",
-// 		"data":    quotes[0],
-// 	})
-// }
+	response.SuccessResponse(context, map[string]interface{}{
+		"code":    "success",
+		"message": "quote Data",
+		"data":    state,
+	})
+}
 
-// type UpdateQuoteRequest struct {
-// 	QuoteId      string `json:"id" form:"id" binding:"required"`
-// 	SellRate     string `json:"sell" form:"sell" binding:"required"`
-// 	BuyRate      string `json:"buy" form:"buy" binding:"required"`
-// 	LinerId      string `json:"liner_id" form:"liner_id" binding:"required"`
-// 	PartnerId    string `json:"partner_id" form:"partner_id" binding:"required"`
-// 	Validity     string `json:"validity" form:"validity" binding:"required"`
-// 	TransmitDays string `json:"transmit_days" form:"transmit_days" binding:"required"`
-// 	FreeDays     string `json:"free_days" form:"free_days" binding:"required"`
-// 	Currency     string `json:"currency" form:"currency" binding:"required"`
-// 	PartnerTax   string `json:"partner_tax" form:"partner_tax" binding:"required"`
-// }
+func (handler QuoteHandler) UpdateQuote(context *gin.Context) {
 
-// func (handler QuoteHandler) UpdateQuote(context *gin.Context) {
+	var updateQuoteRequest repository.UpdateQuoteParams
 
-// 	var updateQuoteRequest UpdateQuoteRequest
+	if err := context.ShouldBind(&updateQuoteRequest); err != nil {
+		response.ErrorResponse(context, http.StatusBadRequest, "Required fields are empty")
+		return
+	}
 
-// 	if err := context.ShouldBind(&updateQuoteRequest); err != nil {
-// 		response.ErrorResponse(context, http.StatusBadRequest, "Required fields are empty")
-// 		return
-// 	}
+	data, err := handler.queries.GetQuote(context, repository.GetQuoteParams{
+		ID: updateQuoteRequest.ID,
+	})
+	if err != nil {
+		// TODO: return quote not found
+		response.SuccessResponse(context, map[string]interface{}{
+			"code":    "success",
+			"message": "Quote not found",
+		})
+	}
 
-// 	data, err := handler.quotesDB.Select(context, map[string]interface{}{
-// 		"id": updateQuoteRequest.QuoteId,
-// 	}, nil, nil)
+	var isUpdated bool
+	updateBody := make(map[string]interface{})
 
-// 	if err != nil {
-// 		// TODO: return quote not found
-// 		response.SuccessResponse(context, map[string]interface{}{
-// 			"code":    "success",
-// 			"message": "Quote not found",
-// 		})
-// 	}
-// 	if len(data) == 0 {
-// 		// TODO: return quote not found
-// 		response.SuccessResponse(context, map[string]interface{}{
-// 			"code":    "success",
-// 			"message": "Quote not found",
-// 		})
-// 	} else if len(data) > 1 {
-// 		// TODO: internal server error, more than one quotes with same id
-// 		response.SuccessResponse(context, map[string]interface{}{
-// 			"code":    "success",
-// 			"message": "internal server error, more than one quotes with same id",
-// 		})
-// 	}
-// 	var isUpdated bool
-// 	updateBody := make(map[string]interface{})
+	if updateQuoteRequest.Buy.String != "" {
+		updateBody["buy"] = updateQuoteRequest.Buy
+		updateBody["liner_id"] = updateQuoteRequest.LinerID
+		updateBody["partner_id"] = updateQuoteRequest.PartnerID
+		updateBody["validity"] = updateQuoteRequest.Validity
+		updateBody["transmit_days"] = updateQuoteRequest.TransmitDays
+		updateBody["free_days"] = updateQuoteRequest.FreeDays
+		updateBody["currency"] = updateQuoteRequest.Currency
+		updateBody["partner_tax"] = updateQuoteRequest.PartnerTax
+		updateBody["procurement_id"] = updateQuoteRequest.ProcurementID
+	}
 
-// 	if updateQuoteRequest.BuyRate != "" {
-// 		updateBody["buy"] = updateQuoteRequest.BuyRate
-// 		updateBody["liner_id"] = updateQuoteRequest.LinerId
-// 		updateBody["partner_id"] = updateQuoteRequest.PartnerId
-// 		updateBody["validity"] = updateQuoteRequest.Validity
-// 		updateBody["transmit_days"] = updateQuoteRequest.TransmitDays
-// 		updateBody["free_days"] = updateQuoteRequest.FreeDays
-// 		updateBody["currency"] = updateQuoteRequest.Currency
-// 		updateBody["partner_tax"] = updateQuoteRequest.PartnerId
-// 	}
+	if updateQuoteRequest.Sell.String != "" {
+		if data.Buy.String != "" {
+			//TODO: return Buydate should be set first
+		} else {
+			updateBody["sell"] = updateQuoteRequest.Sell
+			updateBody["sales_id"] = updateQuoteRequest.SalesID
+		}
+	}
 
-// 	if updateQuoteRequest.SellRate != "" {
-// 		if data[0].Buy != "" {
-// 			//TODO: return Buydate should be set first
-// 		} else {
-// 			updateBody["sell"] = updateQuoteRequest.SellRate
-// 		}
-// 	}
+	if isUpdated {
+		err := handler.queries.UpdateQuote(context, repository.UpdateQuoteParams{
+			LinerID:       updateQuoteRequest.LinerID,
+			PartnerID:     updateQuoteRequest.PartnerID,
+			Validity:      updateQuoteRequest.Validity,
+			TransmitDays:  updateQuoteRequest.TransmitDays,
+			FreeDays:      updateQuoteRequest.FreeDays,
+			Currency:      updateQuoteRequest.Currency,
+			Buy:           updateQuoteRequest.Buy,
+			Sell:          updateQuoteRequest.Sell,
+			PartnerTax:    updateQuoteRequest.PartnerTax,
+			ProcurementID: updateQuoteRequest.ProcurementID,
+			SalesID:       updateQuoteRequest.SalesID,
+		})
 
-// 	if isUpdated {
-// 		_, err := handler.quotesDB.Update(context, updateBody, []string{
-// 			fmt.Sprintf("id = '%s'", updateQuoteRequest.QuoteId),
-// 		})
-// 		if err != nil {
-// 			// TODO: return, error updating quote in database
-// 			response.SuccessResponse(context, map[string]interface{}{
-// 				"code":    "success",
-// 				"message": "Error updating quote in database",
-// 			})
-// 		}
-// 		// TODO return, quote updated successfuly
-// 		response.SuccessResponse(context, map[string]interface{}{
-// 			"code":    "success",
-// 			"message": "Quote updated successfuly",
-// 			"data":    data[0],
-// 		})
-// 	}
-// 	// TODO return, nothing to update
-// 	response.SuccessResponse(context, map[string]interface{}{
-// 		"code":    "success",
-// 		"message": "Nothing to process",
-// 	})
-// }
+		if err != nil {
+			// TODO: return, error updating quote in database
+			response.SuccessResponse(context, map[string]interface{}{
+				"code":    "success",
+				"message": "Error updating quote in database",
+			})
+		}
+		// TODO return, quote updated successfuly
+		response.SuccessResponse(context, map[string]interface{}{
+			"code":    "success",
+			"message": "Quote updated successfuly",
+			"data":    data,
+		})
+	}
+	// TODO return, nothing to update
+	response.SuccessResponse(context, map[string]interface{}{
+		"code":    "success",
+		"message": "Nothing to process",
+	})
+}
 
-// func (handler QuoteHandler) GetAllQuote(context *gin.Context) {
+func (handler QuoteHandler) GetAllQuote(context *gin.Context) {
 
-// 	quotes, err := handler.quotesDB.Select(context, map[string]interface{}{}, nil, nil)
+	customer_id := context.Request.URL.Query().Get("customer_id")
 
-// 	if err != nil {
-// 		response.SuccessResponse(context, map[string]interface{}{
-// 			"code":    "success",
-// 			"message": "Error int get all quote",
-// 			"error":   err,
-// 		})
-// 		return
-// 	}
+	quotes, err := handler.queries.ListQuotes(context, customer_id)
 
-// 	response.SuccessResponse(context, map[string]interface{}{
-// 		"code":    "success",
-// 		"message": "Fetched all quote list",
-// 		"data":    quotes,
-// 	})
-// }
+	if err != nil {
+		response.SuccessResponse(context, map[string]interface{}{
+			"code":    "success",
+			"message": "Error int get all quote",
+			"error":   err,
+		})
+		return
+	}
+
+	response.SuccessResponse(context, map[string]interface{}{
+		"code":    "success",
+		"message": "Fetched all quote list",
+		"data":    quotes,
+	})
+}

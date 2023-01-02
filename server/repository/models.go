@@ -5,14 +5,14 @@ import (
 )
 
 type AccountDetail struct {
-	ID           string
-	Name         sql.NullString
-	CompanyName  sql.NullString
-	Email        sql.NullString
-	Mobile       sql.NullString
-	Roles        sql.NullString
-	City         sql.NullString
-	IsRegistered sql.NullBool
+	ID          string
+	Name        sql.NullString
+	CompanyName sql.NullString
+	Email       sql.NullString
+	Mobile      sql.NullString
+	Roles       sql.NullString
+	City        sql.NullString
+	Password    sql.NullString
 }
 
 type Booking struct {
@@ -79,6 +79,8 @@ type Quote struct {
 	Buy             sql.NullString
 	Sell            sql.NullString
 	PartnerTax      sql.NullString
+	ProcurementID   sql.NullString
+	SalesID         sql.NullString
 }
 
 type Task struct {
