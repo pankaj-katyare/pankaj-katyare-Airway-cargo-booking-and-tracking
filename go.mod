@@ -13,10 +13,12 @@ require (
 	github.com/go-openapi/spec v0.20.7 // indirect
 	github.com/go-openapi/swag v0.22.3 // indirect
 	github.com/go-sql-driver/mysql v1.6.0
+	github.com/gofrs/uuid v4.3.1+incompatible
 	github.com/google/uuid v1.3.0
 	github.com/jinzhu/gorm v1.9.12
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/joho/godotenv v1.4.0
+	github.com/kataras/jwt v0.1.8 // indirect
 	github.com/khaiql/dbcleaner v2.3.0+incompatible // indirect
 	github.com/lib/pq v1.10.3
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible // indirect

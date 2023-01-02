@@ -4,6 +4,9 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -13,6 +16,7 @@ import (
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/kataras/jwt"
 )
 
 type AccountHandler struct {
@@ -37,7 +41,7 @@ func (handler AccountHandler) CreateAccount(context *gin.Context) {
 		return
 	}
 
-	state, err := handler.queries.CreateAccountDetails(context, repository.CreateAccountDetailsParams{
+	_, err := handler.queries.CreateAccountDetails(context, repository.CreateAccountDetailsParams{
 		ID:          uuid.New().String(),
 		Name:        sql.NullString{String: account.Name, Valid: true},
 		Email:       sql.NullString{String: account.Email, Valid: true},
@@ -50,14 +54,13 @@ func (handler AccountHandler) CreateAccount(context *gin.Context) {
 
 	if err != nil {
 		fmt.Println("error", err)
-		response.ErrorResponse(context, http.StatusBadRequest, "Error inserting account")
+		response.ErrorResponse(context, http.StatusBadRequest, "Error in inserting account")
 		return
 	}
 
 	response.SuccessResponse(context, map[string]interface{}{
 		"code":    "success",
-		"message": "Request account Created successfuly",
-		"data":    state,
+		"message": "Customer Created successfully",
 	})
 }
 
@@ -80,23 +83,31 @@ func (handler AccountHandler) Login(context *gin.Context) {
 		return
 	}
 
-	state, err := handler.queries.GetAccountDetails(context, login.Email)
+	state, err := handler.queries.Login(context, repository.LoginParams{
+		Email:    login.Email,
+		Password: utils.GetHash(login.Password),
+	})
 
 	if err != nil {
-		response.ErrorResponse(context, http.StatusNotFound, "Error on get account details")
 		fmt.Println("error", err)
+		response.ErrorResponse(context, http.StatusNotFound, "Invalid credentials")
 		return
 	}
 
-	if state.Email.String != login.Email && !utils.IsHashValid(state.Password.String, login.Password) {
-		response.ErrorResponse(context, http.StatusNotFound, "id or password are wrong")
+	token, err := jwt.Sign(jwt.HS256, []byte(os.Getenv("SECRET")), model.TokenData{
+		CustomerID: state.ID,
+		Role:       state.Roles.String,
+	}, jwt.MaxAge(2*time.Hour))
+	if err != nil {
+		fmt.Printf("Error: %s", err.Error())
+		response.ErrorResponse(context, http.StatusInternalServerError, "Error generating token")
 		return
 	}
 
+	context.Header("auth-bearer", string(token))
 	response.SuccessResponse(context, map[string]interface{}{
 		"code":    "success",
-		"message": "login successful",
-		"data":    state,
+		"message": "login successfully",
 	})
 }
 
@@ -131,17 +142,7 @@ func (handler AccountHandler) UpdateAccountDetails(context *gin.Context) {
 		return
 	}
 
-	data, err := handler.queries.GetAccountDetails(context, account.Id)
-
-	if err != nil {
-		response.ErrorResponse(context, http.StatusNotFound, "Error on get account details")
-		fmt.Println("error", err)
-		return
-	}
-
-	fmt.Println("old data :", data)
-
-	err = handler.queries.UpdateAccountDetails(context, repository.UpdateAccountDetailsParams{
+	err := handler.queries.UpdateAccountDetails(context, repository.UpdateAccountDetailsParams{
 		ID:          account.Id,
 		Name:        sql.NullString{String: account.Name, Valid: true},
 		CompanyName: sql.NullString{String: account.CompanyName, Valid: true},
@@ -182,4 +183,38 @@ func (handler AccountHandler) GetAllAccount(context *gin.Context) {
 		"message": "Fetched all account list",
 		"data":    quotes,
 	})
+}
+
+func AuthorizationMiddleware(c *gin.Context) {
+	bearer := c.Request.Header.Get("Authorization")
+	if bearer == "" {
+		fmt.Println("Authorization token not found in request")
+		c.Status(http.StatusUnauthorized)
+		return
+	}
+
+	fmt.Println(bearer)
+
+	token := strings.Split(bearer, " ")[1]
+
+	fmt.Println(token)
+
+	verifiedToken, err := jwt.Verify(jwt.HS256, []byte(os.Getenv("SECRET")), []byte(token))
+	if err != nil {
+		fmt.Println(err.Error())
+		c.Status(http.StatusUnauthorized)
+		return
+	}
+
+	var claims model.TokenData
+
+	if err = verifiedToken.Claims(&claims); err != nil {
+		fmt.Println(err.Error())
+		c.Status(http.StatusUnauthorized)
+		return
+	}
+
+	c.Set("claims", claims)
+
+	c.Next()
 }

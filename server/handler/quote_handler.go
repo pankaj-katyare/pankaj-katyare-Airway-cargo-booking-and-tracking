@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/constant"
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/model"
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/repository"
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/response"
@@ -104,81 +105,120 @@ func (handler QuoteHandler) GetQuoteByID(context *gin.Context) {
 
 func (handler QuoteHandler) UpdateQuote(context *gin.Context) {
 
-	var updateQuoteRequest repository.UpdateQuoteParams
+	var tokenData interface{}
+	tokenData, isExists := context.Get("claims")
+	if !isExists {
+		response.ErrorResponse(context, http.StatusUnauthorized, "Claims not found in request, request unauthorised")
+		return
+	}
+	claims := tokenData.(model.TokenData)
+	if claims.Role == constant.CUSTOMER_ROLE {
+		response.ErrorResponse(context, http.StatusUnauthorized, "Permission denied")
+		return
+	}
+	var updateQuoteRequest model.UpdateQuoteRequest
 
 	if err := context.ShouldBind(&updateQuoteRequest); err != nil {
 		response.ErrorResponse(context, http.StatusBadRequest, "Required fields are empty")
+		fmt.Println("Error:  ", err)
 		return
 	}
 
-	data, err := handler.queries.GetQuote(context, repository.GetQuoteParams{
-		ID: updateQuoteRequest.ID,
-	})
+	var data repository.Quote
+	var err error
+
+	if claims.Role == constant.CUSTOMER_ROLE {
+		data, err = handler.queries.GetQuote(context, repository.GetQuoteParams{
+			ID:         updateQuoteRequest.ID,
+			CustomerID: claims.CustomerID,
+		})
+	} else {
+		data, err = handler.queries.AdminGetQuote(context, updateQuoteRequest.ID)
+	}
+
 	if err != nil {
 		// TODO: return quote not found
 		response.SuccessResponse(context, map[string]interface{}{
 			"code":    "success",
 			"message": "Quote not found",
 		})
+		return
 	}
 
-	var isUpdated bool
-	updateBody := make(map[string]interface{})
-
-	if updateQuoteRequest.Buy.String != "" {
-		updateBody["buy"] = updateQuoteRequest.Buy
-		updateBody["liner_id"] = updateQuoteRequest.LinerID
-		updateBody["partner_id"] = updateQuoteRequest.PartnerID
-		updateBody["validity"] = updateQuoteRequest.Validity
-		updateBody["transmit_days"] = updateQuoteRequest.TransmitDays
-		updateBody["free_days"] = updateQuoteRequest.FreeDays
-		updateBody["currency"] = updateQuoteRequest.Currency
-		updateBody["partner_tax"] = updateQuoteRequest.PartnerTax
-		updateBody["procurement_id"] = updateQuoteRequest.ProcurementID
-	}
-
-	if updateQuoteRequest.Sell.String != "" {
-		if data.Buy.String != "" {
-			//TODO: return Buydate should be set first
+	if updateQuoteRequest.Buy != data.Buy.String {
+		if claims.Role != constant.PROCUREMENT_ROLE && claims.Role != constant.ADMIN_ROLE {
+			response.ErrorResponse(context, http.StatusUnauthorized, "Only admin or procurement executive can set Buy rate")
+			return
 		} else {
-			updateBody["sell"] = updateQuoteRequest.Sell
-			updateBody["sales_id"] = updateQuoteRequest.SalesID
+			data.Buy.String = updateQuoteRequest.Buy
+			data.Buy.Valid = true
 		}
 	}
 
-	if isUpdated {
-		err := handler.queries.UpdateQuote(context, repository.UpdateQuoteParams{
-			LinerID:       updateQuoteRequest.LinerID,
-			PartnerID:     updateQuoteRequest.PartnerID,
-			Validity:      updateQuoteRequest.Validity,
-			TransmitDays:  updateQuoteRequest.TransmitDays,
-			FreeDays:      updateQuoteRequest.FreeDays,
-			Currency:      updateQuoteRequest.Currency,
-			Buy:           updateQuoteRequest.Buy,
-			Sell:          updateQuoteRequest.Sell,
-			PartnerTax:    updateQuoteRequest.PartnerTax,
-			ProcurementID: updateQuoteRequest.ProcurementID,
-			SalesID:       updateQuoteRequest.SalesID,
-		})
-
-		if err != nil {
-			// TODO: return, error updating quote in database
-			response.SuccessResponse(context, map[string]interface{}{
-				"code":    "success",
-				"message": "Error updating quote in database",
-			})
+	if updateQuoteRequest.Sell != data.Sell.String {
+		if claims.Role != constant.SALE_ROLE && claims.Role != constant.ADMIN_ROLE {
+			response.ErrorResponse(context, http.StatusUnauthorized, "Only admin or sales executive can set sale rate")
+			return
+		} else {
+			data.Sell.String = updateQuoteRequest.Sell
+			data.Sell.Valid = true
 		}
-		// TODO return, quote updated successfuly
+	}
+
+	if updateQuoteRequest.LinerId != "" {
+		data.LinerID.String = updateQuoteRequest.LinerId
+		data.LinerID.Valid = true
+	}
+	if updateQuoteRequest.PartnerId != "" {
+		data.PartnerID.String = updateQuoteRequest.PartnerId
+		data.PartnerID.Valid = true
+	}
+	if updateQuoteRequest.Validity != "" {
+		data.Validity.String = updateQuoteRequest.Validity
+		data.Validity.Valid = true
+	}
+	if updateQuoteRequest.TransmitDays != "" {
+		data.TransmitDays.String = updateQuoteRequest.TransmitDays
+		data.TransmitDays.Valid = true
+	}
+	if updateQuoteRequest.FreeDays != "" {
+		data.FreeDays.String = updateQuoteRequest.FreeDays
+		data.FreeDays.Valid = true
+	}
+	if updateQuoteRequest.Currency != "" {
+		data.Currency.String = updateQuoteRequest.Currency
+		data.Currency.Valid = true
+	}
+	if updateQuoteRequest.PartnerTax != "" {
+		data.PartnerTax.String = updateQuoteRequest.PartnerTax
+		data.PartnerTax.Valid = true
+	}
+
+	err = handler.queries.UpdateQuote(context, repository.UpdateQuoteParams{
+		LinerID:      data.LinerID,
+		PartnerID:    data.PartnerID,
+		Validity:     data.Validity,
+		TransmitDays: data.TransmitDays,
+		FreeDays:     data.FreeDays,
+		Currency:     data.Currency,
+		Buy:          data.Buy,
+		Sell:         data.Sell,
+		PartnerTax:   data.PartnerTax,
+	})
+
+	if err != nil {
+		// TODO: return, error updating quote in database
 		response.SuccessResponse(context, map[string]interface{}{
 			"code":    "success",
-			"message": "Quote updated successfuly",
-			"data":    data,
+			"message": "Error updating quote in database",
 		})
+		return
 	}
-	// TODO return, nothing to update
+	// TODO return, quote updated successfuly
 	response.SuccessResponse(context, map[string]interface{}{
 		"code":    "success",
-		"message": "Nothing to process",
+		"message": "Quote updated successfuly",
+		"data":    data,
 	})
 }
 

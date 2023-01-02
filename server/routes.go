@@ -1,11 +1,8 @@
 package server
 
 import (
-	"fmt"
-	"io/ioutil"
-	"net/http"
-
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/handler"
 )
 
@@ -19,52 +16,47 @@ func ConfigureRoutes(server *Server) {
 
 	api := server.engine.RouterGroup.Group("/api")
 
-	// quotes APIs
-	api.POST("/quote", quotesHandler.RequestQuote)
-	api.PUT("/update_quote", quotesHandler.UpdateQuote)
-	api.GET("/quote", quotesHandler.GetQuoteByID)
-	api.GET("/quotes", quotesHandler.GetAllQuote)
+	// Request
+	api.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("X-Request-Id", uuid.New().String())
+	})
 
-	// account APIs
+	// Auth & register apis
 	api.POST("/login", accountHandler.Login)
 	api.POST("/Register", accountHandler.CreateAccount)
-	api.PUT("/update_account", accountHandler.UpdateAccountDetails)
-	api.GET("/account", accountHandler.GetAccountByID)
-	api.GET("/accounts", accountHandler.GetAllAccount)
 
-	// booking APIs
-	api.POST("/booking", bookingHandler.CreateBooking)
-	api.PUT("/update_booking", bookingHandler.UpdateBooking)
-	api.GET("/booking", bookingHandler.GetBookingByID)
-	api.GET("/bookings", bookingHandler.ListBookings)
+	auth := api.Group("/cargo")
 
-	// booking milestone APIs
+	// Authentication middleware
+	auth.Use(handler.AuthorizationMiddleware)
 
-	api.POST("/booking_milestone", bookingMilestoneHandler.CreateBookingMilestone)
-	api.PUT("/update_booking_milestone", bookingMilestoneHandler.UpdateBookingMilestone)
-	api.GET("/booking_milestone", bookingMilestoneHandler.GetBookingMilestone)
-	api.GET("/booking_milestones", bookingMilestoneHandler.ListBookingMilestone)
+	// Account APIs
+	auth.PUT("/update_account", accountHandler.UpdateAccountDetails)
+	auth.GET("/account", accountHandler.GetAccountByID)
+	auth.GET("/accounts", accountHandler.GetAllAccount)
 
-	// booking task APIS
+	// Quotes APIs
+	auth.POST("/quote", quotesHandler.RequestQuote)
+	auth.PUT("/update_quote", quotesHandler.UpdateQuote)
+	auth.GET("/quote", quotesHandler.GetQuoteByID)
+	auth.GET("/quotes", quotesHandler.GetAllQuote)
 
-	api.POST("/booking_task", bookingTaskHandler.CreateBookingTask)
-	api.PUT("/update_booking_task", bookingTaskHandler.UpdateBookingTask)
-	api.GET("/booking_task", bookingTaskHandler.GetBookingTask)
-	api.GET("/booking_tasks", bookingTaskHandler.ListBookingTask)
+	// Booking APIs
+	auth.POST("/booking", bookingHandler.CreateBooking)
+	auth.PUT("/update_booking", bookingHandler.UpdateBooking)
+	auth.GET("/booking", bookingHandler.GetBookingByID)
+	auth.GET("/bookings", bookingHandler.ListBookings)
 
-	api.POST("/customers", func(c *gin.Context) {
-		data, err := ioutil.ReadAll(c.Request.Body)
-		if err != nil {
-			fmt.Printf("ERROR: %s", err.Error())
-			c.JSON(http.StatusInternalServerError, map[string]string{
-				"ERROR": err.Error(),
-			})
-			return
-		}
-		fmt.Printf("DATA: %s", string(data))
-		c.JSON(http.StatusInternalServerError, map[string]string{
-			"DATA": string(data),
-		})
-	})
+	// Booking milestone APIs
+	auth.POST("/booking_milestone", bookingMilestoneHandler.CreateBookingMilestone)
+	auth.PUT("/update_booking_milestone", bookingMilestoneHandler.UpdateBookingMilestone)
+	auth.GET("/booking_milestone", bookingMilestoneHandler.GetBookingMilestone)
+	auth.GET("/booking_milestones", bookingMilestoneHandler.ListBookingMilestone)
+
+	// Booking task APIS
+	auth.POST("/booking_task", bookingTaskHandler.CreateBookingTask)
+	auth.PUT("/update_booking_task", bookingTaskHandler.UpdateBookingTask)
+	auth.GET("/booking_task", bookingTaskHandler.GetBookingTask)
+	auth.GET("/booking_tasks", bookingTaskHandler.ListBookingTask)
 
 }
