@@ -34,4 +34,10 @@ type UpdateQuoteRequest struct {
 	Buy          string `json:"buy"`
 	Sell         string `json:"sell"`
 	PartnerTax   string `json:"partner_tax"`
+	CustomerId   string `json:"customer_id"`
+}
+
+type ConfirmQuoteRequest struct {
+	QuoteID     string `json:"quote_id"`
+	QuoteStatus string `json:"quote_status"`
 }

@@ -44,12 +44,12 @@ func (handler AccountHandler) CreateAccount(context *gin.Context) {
 	_, err := handler.queries.CreateAccountDetails(context, repository.CreateAccountDetailsParams{
 		ID:          uuid.New().String(),
 		Name:        sql.NullString{String: account.Name, Valid: true},
-		Email:       sql.NullString{String: account.Email, Valid: true},
+		Email:       account.Email,
 		CompanyName: sql.NullString{String: account.CompanyName, Valid: true},
 		Mobile:      sql.NullString{String: account.Mobile, Valid: true},
 		Roles:       sql.NullString{String: account.Roles, Valid: true},
 		City:        sql.NullString{String: account.City, Valid: true},
-		Password:    sql.NullString{String: utils.GetHash(account.Password), Valid: true},
+		Password:    utils.GetHash(account.Password),
 	})
 
 	if err != nil {
@@ -146,11 +146,11 @@ func (handler AccountHandler) UpdateAccountDetails(context *gin.Context) {
 		ID:          account.Id,
 		Name:        sql.NullString{String: account.Name, Valid: true},
 		CompanyName: sql.NullString{String: account.CompanyName, Valid: true},
-		Email:       sql.NullString{String: account.Email, Valid: true},
+		Email:       account.Email,
 		Mobile:      sql.NullString{String: account.Mobile, Valid: true},
 		Roles:       sql.NullString{String: account.Roles, Valid: true},
 		City:        sql.NullString{String: account.City, Valid: true},
-		Password:    sql.NullString{String: utils.GetHash(account.Password), Valid: true},
+		Password:    utils.GetHash(account.Password),
 	})
 
 	if err != nil {
@@ -193,12 +193,7 @@ func AuthorizationMiddleware(c *gin.Context) {
 		return
 	}
 
-	fmt.Println(bearer)
-
 	token := strings.Split(bearer, " ")[1]
-
-	fmt.Println(token)
-
 	verifiedToken, err := jwt.Verify(jwt.HS256, []byte(os.Getenv("SECRET")), []byte(token))
 	if err != nil {
 		fmt.Println(err.Error())

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
@@ -74,24 +75,35 @@ func (handler QuoteHandler) RequestQuote(context *gin.Context) {
 
 func (handler QuoteHandler) GetQuoteByID(context *gin.Context) {
 
+	var tokenData interface{}
+	tokenData, isExists := context.Get("claims")
+	if !isExists {
+		response.ErrorResponse(context, http.StatusUnauthorized, "Claims not found in request, request unauthorised")
+		return
+	}
+
+	claims := tokenData.(model.TokenData)
 	id := context.Request.URL.Query().Get("id")
-	customer_id := context.Request.URL.Query().Get("customer_id")
 
 	if id == "" {
 		response.ErrorResponse(context, http.StatusNotFound, "ID not specified")
 		return
 	}
-	if customer_id == "" {
-		response.ErrorResponse(context, http.StatusNotFound, "customer_id not specified")
-		return
+
+	var quote repository.Quote
+	var err error
+	if claims.Role == constant.CUSTOMER_ROLE {
+		quote, err = handler.queries.GetQuote(context, repository.GetQuoteParams{
+			ID:         id,
+			CustomerID: claims.CustomerID,
+		})
+
+	} else {
+		quote, err = handler.queries.AdminGetQuote(context, id)
 	}
 
-	state, err := handler.queries.GetQuote(context, repository.GetQuoteParams{
-		ID:         id,
-		CustomerID: customer_id,
-	})
-
 	if err != nil {
+		fmt.Println(err.Error())
 		response.ErrorResponse(context, http.StatusNotFound, err.Error())
 		return
 	}
@@ -99,7 +111,7 @@ func (handler QuoteHandler) GetQuoteByID(context *gin.Context) {
 	response.SuccessResponse(context, map[string]interface{}{
 		"code":    "success",
 		"message": "quote Data",
-		"data":    state,
+		"data":    quote,
 	})
 }
 
@@ -134,10 +146,11 @@ func (handler QuoteHandler) UpdateQuote(context *gin.Context) {
 		})
 	} else {
 		data, err = handler.queries.AdminGetQuote(context, updateQuoteRequest.ID)
+		fmt.Println("quote data:", data)
 	}
 
 	if err != nil {
-		// TODO: return quote not found
+		fmt.Println("Error:  ", err)
 		response.SuccessResponse(context, map[string]interface{}{
 			"code":    "success",
 			"message": "Quote not found",
@@ -166,35 +179,43 @@ func (handler QuoteHandler) UpdateQuote(context *gin.Context) {
 	}
 
 	if updateQuoteRequest.LinerId != "" {
+		fmt.Println("Updated LinerId: ", updateQuoteRequest.LinerId)
 		data.LinerID.String = updateQuoteRequest.LinerId
 		data.LinerID.Valid = true
 	}
 	if updateQuoteRequest.PartnerId != "" {
+		fmt.Println("Updated LinerId: ", updateQuoteRequest.PartnerId)
 		data.PartnerID.String = updateQuoteRequest.PartnerId
 		data.PartnerID.Valid = true
 	}
 	if updateQuoteRequest.Validity != "" {
+		fmt.Println("Updated LinerId: ", updateQuoteRequest.Validity)
 		data.Validity.String = updateQuoteRequest.Validity
 		data.Validity.Valid = true
 	}
 	if updateQuoteRequest.TransmitDays != "" {
+		fmt.Println("Updated LinerId: ", updateQuoteRequest.TransmitDays)
 		data.TransmitDays.String = updateQuoteRequest.TransmitDays
 		data.TransmitDays.Valid = true
 	}
 	if updateQuoteRequest.FreeDays != "" {
+		fmt.Println("Updated LinerId: ", updateQuoteRequest.FreeDays)
 		data.FreeDays.String = updateQuoteRequest.FreeDays
 		data.FreeDays.Valid = true
 	}
 	if updateQuoteRequest.Currency != "" {
+		fmt.Println("Updated LinerId: ", updateQuoteRequest.Currency)
 		data.Currency.String = updateQuoteRequest.Currency
 		data.Currency.Valid = true
 	}
-	if updateQuoteRequest.PartnerTax != "" {
-		data.PartnerTax.String = updateQuoteRequest.PartnerTax
-		data.PartnerTax.Valid = true
+
+	if updateQuoteRequest.CustomerId != "" {
+		fmt.Println(" Customer id: ", updateQuoteRequest.Currency)
+		data.CustomerID = updateQuoteRequest.CustomerId
+		data.Currency.Valid = true
 	}
 
-	err = handler.queries.UpdateQuote(context, repository.UpdateQuoteParams{
+	finalQuote := repository.UpdateQuoteParams{
 		LinerID:      data.LinerID,
 		PartnerID:    data.PartnerID,
 		Validity:     data.Validity,
@@ -204,16 +225,21 @@ func (handler QuoteHandler) UpdateQuote(context *gin.Context) {
 		Buy:          data.Buy,
 		Sell:         data.Sell,
 		PartnerTax:   data.PartnerTax,
-	})
+		CustomerID:   data.CustomerID,
+	}
+	fmt.Printf("\nFinal Quote: %+v", finalQuote)
+
+	err = handler.queries.UpdateQuote(context, finalQuote)
 
 	if err != nil {
-		// TODO: return, error updating quote in database
+		fmt.Println("Error:  ", err)
 		response.SuccessResponse(context, map[string]interface{}{
-			"code":    "success",
+			"code":    "failed",
 			"message": "Error updating quote in database",
 		})
 		return
 	}
+
 	// TODO return, quote updated successfuly
 	response.SuccessResponse(context, map[string]interface{}{
 		"code":    "success",
@@ -242,4 +268,139 @@ func (handler QuoteHandler) GetAllQuote(context *gin.Context) {
 		"message": "Fetched all quote list",
 		"data":    quotes,
 	})
+}
+
+func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
+
+	var tokenData interface{}
+	tokenData, isExists := context.Get("claims")
+	if !isExists {
+		response.ErrorResponse(context, http.StatusUnauthorized, "Claims not found in request, request unauthorised")
+		return
+	}
+	claims := tokenData.(model.TokenData)
+	if claims.Role == constant.CUSTOMER_ROLE {
+		response.ErrorResponse(context, http.StatusUnauthorized, "Permission denied")
+		return
+	}
+	var confirmQuote model.ConfirmQuoteRequest
+
+	if err := context.ShouldBind(&confirmQuote); err != nil {
+		response.ErrorResponse(context, http.StatusBadRequest, "Required fields are empty")
+		fmt.Println("Error:  ", err)
+		return
+	}
+
+	var data repository.Quote
+	var err error
+
+	if claims.Role == constant.CUSTOMER_ROLE {
+		data, err = handler.queries.GetQuote(context, repository.GetQuoteParams{
+			ID:         confirmQuote.QuoteID,
+			CustomerID: claims.CustomerID,
+		})
+	} else {
+		data, err = handler.queries.AdminGetQuote(context, confirmQuote.QuoteID)
+	}
+
+	if err != nil {
+		response.ErrorResponse(context, http.StatusNotFound, "Quote not found")
+		return
+	}
+
+	if data.QuoteStatus.String == constant.QUOTE_CONFIRMED {
+		response.SuccessResponse(context, map[string]interface{}{
+			"code":    "success",
+			"message": "Quote already confirmed",
+		})
+		return
+	}
+	if data.Buy.String == "" || data.Sell.String == "" {
+		response.ErrorResponse(context, http.StatusNotFound, "Procurement or seller values not attached with quote")
+		return
+	}
+
+	booking, err := handler.queries.CreateBooking(context, repository.CreateBookingParams{
+		ID:               uuid.New().String(),
+		BookingRequestID: uuid.New().String(),
+		BookingStatus:    sql.NullString{String: constant.BOOKING_CREATED, Valid: true},
+		CustomerID:       sql.NullString{String: claims.CustomerID, Valid: true},
+		Source:           sql.NullString{String: data.Source, Valid: true},
+		Destination:      sql.NullString{String: data.Destination, Valid: true},
+	})
+	if err != nil {
+		response.ErrorResponse(context, http.StatusNotFound, "Unable to create booking")
+		return
+	}
+
+	handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
+		ID:              uuid.New().String(),
+		BookingID:       sql.NullString{String: booking.ID, Valid: true},
+		MilestoneID:     sql.NullString{String: "1", Valid: true},
+		MilestoneStatus: sql.NullString{String: constant.MILESTONE_COMPLETED, Valid: true},
+		CreatedAt:       sql.NullString{String: time.Now().UTC().String(), Valid: true},
+		CompletedAt:     sql.NullString{Valid: false},
+	})
+	handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
+		ID:              uuid.New().String(),
+		BookingID:       sql.NullString{String: booking.ID, Valid: true},
+		MilestoneID:     sql.NullString{String: "2", Valid: true},
+		MilestoneStatus: sql.NullString{String: constant.MILESTONE_COMPLETED, Valid: true},
+		CreatedAt:       sql.NullString{String: time.Now().UTC().String(), Valid: true},
+		CompletedAt:     sql.NullString{Valid: false},
+	})
+	handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
+		ID:              uuid.New().String(),
+		BookingID:       sql.NullString{String: booking.ID, Valid: true},
+		MilestoneID:     sql.NullString{String: "3", Valid: true},
+		MilestoneStatus: sql.NullString{String: constant.MILESTONE_IN_PROGRESS, Valid: true},
+		CreatedAt:       sql.NullString{String: time.Now().UTC().String(), Valid: true},
+		CompletedAt:     sql.NullString{Valid: false},
+	})
+	handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
+		ID:              uuid.New().String(),
+		BookingID:       sql.NullString{String: booking.ID, Valid: true},
+		MilestoneID:     sql.NullString{String: "4", Valid: true},
+		MilestoneStatus: sql.NullString{String: constant.MILESTONE_IN_PROGRESS, Valid: true},
+		CreatedAt:       sql.NullString{String: time.Now().UTC().String(), Valid: true},
+		CompletedAt:     sql.NullString{Valid: false},
+	})
+	handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
+		ID:              uuid.New().String(),
+		BookingID:       sql.NullString{String: booking.ID, Valid: true},
+		MilestoneID:     sql.NullString{String: "5", Valid: true},
+		MilestoneStatus: sql.NullString{String: constant.MILESTONE_IN_PROGRESS, Valid: true},
+		CreatedAt:       sql.NullString{String: time.Now().UTC().String(), Valid: true},
+		CompletedAt:     sql.NullString{Valid: false},
+	})
+	handler.queries.CreateBookingTask(context, repository.CreateBookingTaskParams{
+		ID:          uuid.New().String(),
+		BookingID:   sql.NullString{String: booking.ID, Valid: true},
+		TaskID:      sql.NullString{String: "1", Valid: true},
+		TaskStatus:  sql.NullString{String: constant.TASK_IN_PROGRESS, Valid: true},
+		CreatedAt:   sql.NullString{String: time.Now().UTC().String(), Valid: true},
+		CompletedAt: sql.NullString{Valid: false},
+	})
+	handler.queries.CreateBookingTask(context, repository.CreateBookingTaskParams{
+		ID:          uuid.New().String(),
+		BookingID:   sql.NullString{String: booking.ID, Valid: true},
+		TaskID:      sql.NullString{String: "2", Valid: true},
+		TaskStatus:  sql.NullString{String: constant.TASK_IN_PROGRESS, Valid: true},
+		CreatedAt:   sql.NullString{String: time.Now().UTC().String(), Valid: true},
+		CompletedAt: sql.NullString{Valid: false},
+	})
+	handler.queries.CreateBookingTask(context, repository.CreateBookingTaskParams{
+		ID:          uuid.New().String(),
+		BookingID:   sql.NullString{String: booking.ID, Valid: true},
+		TaskID:      sql.NullString{String: "3", Valid: true},
+		TaskStatus:  sql.NullString{String: constant.TASK_IN_PROGRESS, Valid: true},
+		CreatedAt:   sql.NullString{String: time.Now().UTC().String(), Valid: true},
+		CompletedAt: sql.NullString{Valid: false},
+	})
+
+	response.SuccessResponse(context, map[string]interface{}{
+		"code":    "success",
+		"message": "Quote Confirm successfully",
+	})
+
 }

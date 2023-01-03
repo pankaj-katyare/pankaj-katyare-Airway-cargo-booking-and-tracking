@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/constant"
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/model"
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/repository"
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/response"
@@ -39,13 +40,8 @@ func (handler BookingHandler) CreateBooking(context *gin.Context) {
 		BookingRequestID: uuid.New().String(),
 		BookingStatus:    sql.NullString{String: booking.Status, Valid: true},
 		CustomerID:       sql.NullString{String: booking.CustomerId, Valid: true},
-		TaskID:           sql.NullString{String: booking.TaskId, Valid: true},
-		QuoteID:          sql.NullString{String: booking.QuoteId, Valid: true},
-		MilestoneID:      sql.NullString{String: booking.MilestoneId, Valid: true},
-		LinerID:          sql.NullString{String: booking.LinerId, Valid: true},
 		Source:           sql.NullString{String: booking.Source, Valid: true},
 		Destination:      sql.NullString{String: booking.Destination, Valid: true},
-		City:             sql.NullString{String: booking.City, Valid: true},
 	})
 
 	if err != nil {
@@ -63,27 +59,43 @@ func (handler BookingHandler) CreateBooking(context *gin.Context) {
 }
 
 func (handler BookingHandler) GetBookingByID(context *gin.Context) {
-
-	id := context.Request.URL.Query().Get("id")
-
-	if id == "" {
-		response.ErrorResponse(context, http.StatusNotFound, " id is invalid ")
+	var tokenData interface{}
+	tokenData, isExists := context.Get("claims")
+	if !isExists {
+		response.ErrorResponse(context, http.StatusUnauthorized, "Claims not found in request, request unauthorised")
 		return
 	}
 
-	bookings, err := handler.queries.GetBooking(context, repository.GetBookingParams{
-		ID: id,
-	})
+	claims := tokenData.(model.TokenData)
+	id := context.Request.URL.Query().Get("id")
 
-	if err == nil {
+	if id == "" {
+		response.ErrorResponse(context, http.StatusNotFound, "ID not specified")
+		return
+	}
+
+	var booking repository.GetBookingRow
+	var err error
+	if claims.Role == constant.CUSTOMER_ROLE {
+		booking, err = handler.queries.GetBooking(context, repository.GetBookingParams{
+			ID:         id,
+			CustomerID: sql.NullString{Valid: true, String: claims.CustomerID},
+		})
+
+	} else {
+		booking, err = handler.queries.AdminGetBooking(context, id)
+	}
+
+	if err != nil {
+		fmt.Println(err.Error())
 		response.ErrorResponse(context, http.StatusNotFound, err.Error())
 		return
 	}
 
 	response.SuccessResponse(context, map[string]interface{}{
 		"code":    "success",
-		"message": "Quote Data",
-		"data":    bookings,
+		"message": "quote Data",
+		"data":    booking,
 	})
 }
 
@@ -101,13 +113,8 @@ func (handler BookingHandler) UpdateBooking(context *gin.Context) {
 		BookingRequestID: booking.BookingRequestID,
 		BookingStatus:    booking.BookingStatus,
 		CustomerID:       booking.CustomerID,
-		TaskID:           booking.TaskID,
-		QuoteID:          booking.QuoteID,
-		MilestoneID:      booking.MilestoneID,
-		LinerID:          booking.LinerID,
 		Source:           booking.Source,
 		Destination:      booking.Destination,
-		City:             booking.City,
 	})
 
 	if err != nil {
@@ -127,9 +134,41 @@ func (handler BookingHandler) UpdateBooking(context *gin.Context) {
 
 func (handler BookingHandler) ListBookings(context *gin.Context) {
 
-	id := context.Request.URL.Query().Get("id")
+	var tokenData interface{}
 
-	quotes, err := handler.queries.ListQuotes(context, id)
+	tokenData, isExists := context.Get("claims")
+	if !isExists {
+		response.ErrorResponse(context, http.StatusUnauthorized, "Claims not found in request, request unauthorised")
+		return
+	}
+
+	claims := tokenData.(model.TokenData)
+
+	booking := []repository.ListBookingsRow{}
+	bookings := []repository.AdminListBookingsRow{}
+	var err error
+	if claims.Role == constant.CUSTOMER_ROLE {
+
+		booking, err = handler.queries.ListBookings(context, claims.CustomerID)
+		if err != nil {
+			response.SuccessResponse(context, map[string]interface{}{
+				"code":    "success",
+				"message": "Error int get all booking",
+				"error":   err,
+			})
+			return
+		}
+
+		response.SuccessResponse(context, map[string]interface{}{
+			"code":    "success",
+			"message": "Fetched all booking list",
+			"data":    booking,
+		})
+		return
+
+	}
+
+	bookings, err = handler.queries.AdminListBookings(context)
 
 	if err != nil {
 		response.SuccessResponse(context, map[string]interface{}{
@@ -143,6 +182,6 @@ func (handler BookingHandler) ListBookings(context *gin.Context) {
 	response.SuccessResponse(context, map[string]interface{}{
 		"code":    "success",
 		"message": "Fetched all booking list",
-		"data":    quotes,
+		"data":    bookings,
 	})
 }

@@ -12,7 +12,7 @@ type AccountDetail struct {
 	ID          string
 	Name        sql.NullString
 	CompanyName sql.NullString
-	Email       sql.NullString
+	Email       string
 	Mobile      sql.NullString
 	Roles       sql.NullString
 	City        sql.NullString
@@ -24,18 +24,14 @@ type Booking struct {
 	BookingRequestID string
 	BookingStatus    sql.NullString
 	CustomerID       sql.NullString
-	TaskID           sql.NullString
-	QuoteID          sql.NullString
-	MilestoneID      sql.NullString
-	LinerID          sql.NullString
 	Source           sql.NullString
 	Destination      sql.NullString
-	City             sql.NullString
 }
 
 type BookingMilestone struct {
 	ID              string
 	BookingID       sql.NullString
+	MilestoneID     sql.NullString
 	MilestoneStatus sql.NullString
 	CreatedAt       sql.NullString
 	CompletedAt     sql.NullString
@@ -44,11 +40,11 @@ type BookingMilestone struct {
 type BookingTask struct {
 	ID          string
 	BookingID   sql.NullString
+	TaskID      sql.NullString
 	TaskStatus  sql.NullString
 	CreatedAt   sql.NullString
 	CompletedAt sql.NullString
 }
-
 type Liner struct {
 	ID   string
 	Name sql.NullString
@@ -83,6 +79,7 @@ type Quote struct {
 	Buy             sql.NullString
 	Sell            sql.NullString
 	PartnerTax      sql.NullString
+	QuoteStatus     sql.NullString
 }
 
 type Task struct {

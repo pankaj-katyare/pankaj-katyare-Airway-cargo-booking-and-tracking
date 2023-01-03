@@ -40,6 +40,7 @@ func ConfigureRoutes(server *Server) {
 	auth.PUT("/update_quote", quotesHandler.UpdateQuote)
 	auth.GET("/quote", quotesHandler.GetQuoteByID)
 	auth.GET("/quotes", quotesHandler.GetAllQuote)
+	auth.POST("/confirm_quote", quotesHandler.ConfirmQuote)
 
 	// Booking APIs
 	auth.POST("/booking", bookingHandler.CreateBooking)

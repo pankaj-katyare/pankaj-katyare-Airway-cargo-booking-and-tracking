@@ -8,7 +8,25 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 )
+
+const adminConfirmQuote = `-- name: AdminConfirmQuote :exec
+UPDATE quotes set 
+    quote_status =$1
+WHERE id = $2
+`
+
+type AdminConfirmQuoteParams struct {
+	QuoteStatus sql.NullString
+	ID          string
+}
+
+func (q *Queries) AdminConfirmQuote(ctx context.Context, arg AdminConfirmQuoteParams) error {
+	_, err := q.db.ExecContext(ctx, adminConfirmQuote, arg.QuoteStatus, arg.ID)
+	return err
+}
 
 const adminDeleteBooking = `-- name: AdminDeleteBooking :exec
 DELETE FROM booking
@@ -31,36 +49,27 @@ func (q *Queries) AdminDeleteQuote(ctx context.Context, id string) error {
 }
 
 const adminGetBooking = `-- name: AdminGetBooking :one
-SELECT id, booking_request_id, booking_status, customer_id, task_id, quote_id, milestone_id, liner_id, source, destination, city FROM booking
-WHERE id = $1 AND booking_request_id=$2 LIMIT 1
+SELECT booking.id, booking.booking_request_id, booking.booking_status, booking.customer_id, booking.source, booking.destination, (SELECT jsonb_agg(booking_milestone) FROM booking_milestone JOIN milestones ON booking_milestone.milestone_id=milestones.id WHERE booking_milestone.booking_id=booking.id) AS milestones, (SELECT jsonb_agg(booking_task) FROM booking_task JOIN tasks ON booking_task.task_id =tasks.id WHERE booking_task.booking_id=booking.id) AS tasks FROM booking WHERE booking.id = $1 LIMIT 1
 `
 
-type AdminGetBookingParams struct {
-	ID               string
-	BookingRequestID string
-}
-
-func (q *Queries) AdminGetBooking(ctx context.Context, arg AdminGetBookingParams) (Booking, error) {
-	row := q.db.QueryRowContext(ctx, adminGetBooking, arg.ID, arg.BookingRequestID)
-	var i Booking
+func (q *Queries) AdminGetBooking(ctx context.Context, id string) (GetBookingRow, error) {
+	row := q.db.QueryRowContext(ctx, adminGetBooking, id)
+	var i GetBookingRow
 	err := row.Scan(
 		&i.ID,
 		&i.BookingRequestID,
 		&i.BookingStatus,
 		&i.CustomerID,
-		&i.TaskID,
-		&i.QuoteID,
-		&i.MilestoneID,
-		&i.LinerID,
 		&i.Source,
 		&i.Destination,
-		&i.City,
+		&i.Milestones,
+		&i.Tasks,
 	)
 	return i, err
 }
 
 const adminGetQuote = `-- name: AdminGetQuote :one
-SELECT id, quote_type, customer_id, source, destination, door_pickup, door_address, door_delivery, delivery_address, liner_id, partner_id, validity, transmit_days, free_days, currency, buy, sell, partner_tax FROM quotes
+SELECT id, quote_type, customer_id, source, destination, door_pickup, door_address, door_delivery, delivery_address, liner_id, partner_id, validity, transmit_days, free_days, currency, buy, sell, partner_tax, quote_status FROM quotes
 WHERE id = $1 LIMIT 1
 `
 
@@ -86,35 +95,44 @@ func (q *Queries) AdminGetQuote(ctx context.Context, id string) (Quote, error) {
 		&i.Buy,
 		&i.Sell,
 		&i.PartnerTax,
+		&i.QuoteStatus,
 	)
 	return i, err
 }
 
 const adminListBookings = `-- name: AdminListBookings :many
-SELECT id, booking_request_id, booking_status, customer_id, task_id, quote_id, milestone_id, liner_id, source, destination, city FROM booking
+SELECT booking.id, booking.booking_request_id, booking.booking_status, booking.customer_id, booking.source, booking.destination, (SELECT jsonb_agg(booking_milestone) FROM booking_milestone JOIN milestones ON booking_milestone.milestone_id=milestones.id WHERE booking_milestone.booking_id=booking.id) AS milestones, (SELECT jsonb_agg(booking_task) FROM booking_task JOIN tasks ON booking_task.task_id =tasks.id WHERE booking_task.booking_id=booking.id) AS tasks FROM booking
 `
 
-func (q *Queries) AdminListBookings(ctx context.Context) ([]Booking, error) {
+type AdminListBookingsRow struct {
+	ID               string
+	BookingRequestID string
+	BookingStatus    sql.NullString
+	CustomerID       sql.NullString
+	Source           sql.NullString
+	Destination      sql.NullString
+	Milestones       json.RawMessage
+	Tasks            json.RawMessage
+}
+
+func (q *Queries) AdminListBookings(ctx context.Context) ([]AdminListBookingsRow, error) {
 	rows, err := q.db.QueryContext(ctx, adminListBookings)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Booking
+	var items []AdminListBookingsRow
 	for rows.Next() {
-		var i Booking
+		var i AdminListBookingsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.BookingRequestID,
 			&i.BookingStatus,
 			&i.CustomerID,
-			&i.TaskID,
-			&i.QuoteID,
-			&i.MilestoneID,
-			&i.LinerID,
 			&i.Source,
 			&i.Destination,
-			&i.City,
+			&i.Milestones,
+			&i.Tasks,
 		); err != nil {
 			return nil, err
 		}
@@ -130,7 +148,7 @@ func (q *Queries) AdminListBookings(ctx context.Context) ([]Booking, error) {
 }
 
 const adminListQuotes = `-- name: AdminListQuotes :many
-SELECT id, quote_type, customer_id, source, destination, door_pickup, door_address, door_delivery, delivery_address, liner_id, partner_id, validity, transmit_days, free_days, currency, buy, sell, partner_tax FROM quotes
+SELECT id, quote_type, customer_id, source, destination, door_pickup, door_address, door_delivery, delivery_address, liner_id, partner_id, validity, transmit_days, free_days, currency, buy, sell, partner_tax, quote_status FROM quotes
 `
 
 func (q *Queries) AdminListQuotes(ctx context.Context) ([]Quote, error) {
@@ -161,6 +179,7 @@ func (q *Queries) AdminListQuotes(ctx context.Context) ([]Quote, error) {
 			&i.Buy,
 			&i.Sell,
 			&i.PartnerTax,
+			&i.QuoteStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -177,17 +196,12 @@ func (q *Queries) AdminListQuotes(ctx context.Context) ([]Quote, error) {
 
 const adminUpdateBooking = `-- name: AdminUpdateBooking :exec
 UPDATE booking set 
-    Id = $1,
+    id = $1,
     booking_request_id = $2,
     booking_status= $3,
     customer_id = $4,
-    task_id = $5,
-    quote_id = $6,
-    milestone_id = $7,
-    liner_id = $8,
-    source = $9,
-    destination = $10,
-    city = $11
+    source = $5,
+    destination = $6
 WHERE id = $1
 `
 
@@ -196,13 +210,8 @@ type AdminUpdateBookingParams struct {
 	BookingRequestID string
 	BookingStatus    sql.NullString
 	CustomerID       sql.NullString
-	TaskID           sql.NullString
-	QuoteID          sql.NullString
-	MilestoneID      sql.NullString
-	LinerID          sql.NullString
 	Source           sql.NullString
 	Destination      sql.NullString
-	City             sql.NullString
 }
 
 func (q *Queries) AdminUpdateBooking(ctx context.Context, arg AdminUpdateBookingParams) error {
@@ -211,13 +220,8 @@ func (q *Queries) AdminUpdateBooking(ctx context.Context, arg AdminUpdateBooking
 		arg.BookingRequestID,
 		arg.BookingStatus,
 		arg.CustomerID,
-		arg.TaskID,
-		arg.QuoteID,
-		arg.MilestoneID,
-		arg.LinerID,
 		arg.Source,
 		arg.Destination,
-		arg.City,
 	)
 	return err
 }
@@ -265,6 +269,24 @@ func (q *Queries) AdminUpdateQuote(ctx context.Context, arg AdminUpdateQuotePara
 	return err
 }
 
+const confirmQuote = `-- name: ConfirmQuote :exec
+UPDATE quotes set 
+    customer_id = $1,
+    quote_status =$2
+WHERE id = $3
+`
+
+type ConfirmQuoteParams struct {
+	CustomerID  string
+	QuoteStatus sql.NullString
+	ID          string
+}
+
+func (q *Queries) ConfirmQuote(ctx context.Context, arg ConfirmQuoteParams) error {
+	_, err := q.db.ExecContext(ctx, confirmQuote, arg.CustomerID, arg.QuoteStatus, arg.ID)
+	return err
+}
+
 const createAccountDetails = `-- name: CreateAccountDetails :one
 INSERT INTO account_details (
 id, name, company_name,  email, mobile, roles, city, password) 
@@ -277,11 +299,11 @@ type CreateAccountDetailsParams struct {
 	ID          string
 	Name        sql.NullString
 	CompanyName sql.NullString
-	Email       sql.NullString
+	Email       string
 	Mobile      sql.NullString
 	Roles       sql.NullString
 	City        sql.NullString
-	Password    sql.NullString
+	Password    string
 }
 
 func (q *Queries) CreateAccountDetails(ctx context.Context, arg CreateAccountDetailsParams) (AccountDetail, error) {
@@ -311,10 +333,10 @@ func (q *Queries) CreateAccountDetails(ctx context.Context, arg CreateAccountDet
 
 const createBooking = `-- name: CreateBooking :one
 INSERT INTO booking (
-id,booking_request_id,booking_status,customer_id,task_id,quote_id,milestone_id,liner_id,source,destination,city) 
+id,booking_request_id,booking_status,customer_id,source,destination) 
 VALUES (
-    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-RETURNING id, booking_request_id, booking_status, customer_id, task_id, quote_id, milestone_id, liner_id, source, destination, city
+    $1,$2,$3,$4,$5,$6)
+RETURNING id, booking_request_id, booking_status, customer_id, source, destination
 `
 
 type CreateBookingParams struct {
@@ -322,13 +344,8 @@ type CreateBookingParams struct {
 	BookingRequestID string
 	BookingStatus    sql.NullString
 	CustomerID       sql.NullString
-	TaskID           sql.NullString
-	QuoteID          sql.NullString
-	MilestoneID      sql.NullString
-	LinerID          sql.NullString
 	Source           sql.NullString
 	Destination      sql.NullString
-	City             sql.NullString
 }
 
 func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (Booking, error) {
@@ -337,13 +354,8 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		arg.BookingRequestID,
 		arg.BookingStatus,
 		arg.CustomerID,
-		arg.TaskID,
-		arg.QuoteID,
-		arg.MilestoneID,
-		arg.LinerID,
 		arg.Source,
 		arg.Destination,
-		arg.City,
 	)
 	var i Booking
 	err := row.Scan(
@@ -351,28 +363,24 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 		&i.BookingRequestID,
 		&i.BookingStatus,
 		&i.CustomerID,
-		&i.TaskID,
-		&i.QuoteID,
-		&i.MilestoneID,
-		&i.LinerID,
 		&i.Source,
 		&i.Destination,
-		&i.City,
 	)
 	return i, err
 }
 
 const createBookingMilestone = `-- name: CreateBookingMilestone :one
 INSERT INTO booking_milestone (
-id, booking_id, milestone_status, created_at, completed_at) 
+id, booking_id, milestone_id, milestone_status, created_at, completed_at) 
 VALUES (
-   $1,$2,$3,$4,$5)
-RETURNING id, booking_id, milestone_status, created_at, completed_at
+   $1,$2,$3,$4,$5, $6)
+RETURNING id, booking_id, milestone_id, milestone_status, created_at, completed_at
 `
 
 type CreateBookingMilestoneParams struct {
 	ID              string
 	BookingID       sql.NullString
+	MilestoneID     sql.NullString
 	MilestoneStatus sql.NullString
 	CreatedAt       sql.NullString
 	CompletedAt     sql.NullString
@@ -382,6 +390,7 @@ func (q *Queries) CreateBookingMilestone(ctx context.Context, arg CreateBookingM
 	row := q.db.QueryRowContext(ctx, createBookingMilestone,
 		arg.ID,
 		arg.BookingID,
+		arg.MilestoneID,
 		arg.MilestoneStatus,
 		arg.CreatedAt,
 		arg.CompletedAt,
@@ -390,6 +399,7 @@ func (q *Queries) CreateBookingMilestone(ctx context.Context, arg CreateBookingM
 	err := row.Scan(
 		&i.ID,
 		&i.BookingID,
+		&i.MilestoneID,
 		&i.MilestoneStatus,
 		&i.CreatedAt,
 		&i.CompletedAt,
@@ -399,15 +409,16 @@ func (q *Queries) CreateBookingMilestone(ctx context.Context, arg CreateBookingM
 
 const createBookingTask = `-- name: CreateBookingTask :one
 INSERT INTO booking_task (
-id, booking_id, task_status, created_at, completed_at) 
+id, booking_id, task_id, task_status, created_at, completed_at) 
 VALUES (
-   $1,$2,$3,$4,$5)
-RETURNING id, booking_id, task_status, created_at, completed_at
+   $1,$2,$3,$4,$5,$6)
+RETURNING id, booking_id, task_id, task_status, created_at, completed_at
 `
 
 type CreateBookingTaskParams struct {
 	ID          string
 	BookingID   sql.NullString
+	TaskID      sql.NullString
 	TaskStatus  sql.NullString
 	CreatedAt   sql.NullString
 	CompletedAt sql.NullString
@@ -417,6 +428,7 @@ func (q *Queries) CreateBookingTask(ctx context.Context, arg CreateBookingTaskPa
 	row := q.db.QueryRowContext(ctx, createBookingTask,
 		arg.ID,
 		arg.BookingID,
+		arg.TaskID,
 		arg.TaskStatus,
 		arg.CreatedAt,
 		arg.CompletedAt,
@@ -425,6 +437,7 @@ func (q *Queries) CreateBookingTask(ctx context.Context, arg CreateBookingTaskPa
 	err := row.Scan(
 		&i.ID,
 		&i.BookingID,
+		&i.TaskID,
 		&i.TaskStatus,
 		&i.CreatedAt,
 		&i.CompletedAt,
@@ -629,36 +642,43 @@ func (q *Queries) GetAccountDetails(ctx context.Context, id string) (AccountDeta
 }
 
 const getBooking = `-- name: GetBooking :one
-SELECT id, booking_request_id, booking_status, customer_id, task_id, quote_id, milestone_id, liner_id, source, destination, city FROM booking
-WHERE id = $1 AND booking_request_id=$2 AND customer_id=$2 LIMIT 1
+SELECT booking.id, booking.booking_request_id, booking.booking_status, booking.customer_id, booking.source, booking.destination, (SELECT jsonb_agg(booking_milestone) FROM booking_milestone JOIN milestones ON booking_milestone.milestone_id=milestones.id WHERE booking_milestone.booking_id=booking.id) AS milestones, (SELECT jsonb_agg(booking_task) FROM booking_task JOIN tasks ON booking_task.task_id =tasks.id WHERE booking_task.booking_id=booking.id) AS tasks FROM booking WHERE booking.id = $1 AND booking.customer_id=$2 LIMIT 1
 `
 
 type GetBookingParams struct {
-	ID               string
-	BookingRequestID string
+	ID         string
+	CustomerID sql.NullString
 }
 
-func (q *Queries) GetBooking(ctx context.Context, arg GetBookingParams) (Booking, error) {
-	row := q.db.QueryRowContext(ctx, getBooking, arg.ID, arg.BookingRequestID)
-	var i Booking
+type GetBookingRow struct {
+	ID               string
+	BookingRequestID string
+	BookingStatus    sql.NullString
+	CustomerID       sql.NullString
+	Source           sql.NullString
+	Destination      sql.NullString
+	Milestones       json.RawMessage
+	Tasks            json.RawMessage
+}
+
+func (q *Queries) GetBooking(ctx context.Context, arg GetBookingParams) (GetBookingRow, error) {
+	row := q.db.QueryRowContext(ctx, getBooking, arg.ID, arg.CustomerID)
+	var i GetBookingRow
 	err := row.Scan(
 		&i.ID,
 		&i.BookingRequestID,
 		&i.BookingStatus,
 		&i.CustomerID,
-		&i.TaskID,
-		&i.QuoteID,
-		&i.MilestoneID,
-		&i.LinerID,
 		&i.Source,
 		&i.Destination,
-		&i.City,
+		&i.Milestones,
+		&i.Tasks,
 	)
 	return i, err
 }
 
 const getBookingMilestone = `-- name: GetBookingMilestone :one
-SELECT id, booking_id, milestone_status, created_at, completed_at FROM booking_milestone
+SELECT id, booking_id, milestone_id, milestone_status, created_at, completed_at FROM booking_milestone
 WHERE id = $1 LIMIT 1
 `
 
@@ -668,6 +688,7 @@ func (q *Queries) GetBookingMilestone(ctx context.Context, id string) (BookingMi
 	err := row.Scan(
 		&i.ID,
 		&i.BookingID,
+		&i.MilestoneID,
 		&i.MilestoneStatus,
 		&i.CreatedAt,
 		&i.CompletedAt,
@@ -676,7 +697,7 @@ func (q *Queries) GetBookingMilestone(ctx context.Context, id string) (BookingMi
 }
 
 const getBookingTask = `-- name: GetBookingTask :one
-SELECT id, booking_id, task_status, created_at, completed_at FROM booking_task
+SELECT id, booking_id, task_id, task_status, created_at, completed_at FROM booking_task
 WHERE id = $1 LIMIT 1
 `
 
@@ -686,6 +707,7 @@ func (q *Queries) GetBookingTask(ctx context.Context, id string) (BookingTask, e
 	err := row.Scan(
 		&i.ID,
 		&i.BookingID,
+		&i.TaskID,
 		&i.TaskStatus,
 		&i.CreatedAt,
 		&i.CompletedAt,
@@ -710,7 +732,7 @@ SELECT id, name, company_name, email, mobile, roles, city, password FROM account
 WHERE email = $1 LIMIT 1
 `
 
-func (q *Queries) GetLoginDetails(ctx context.Context, email sql.NullString) (AccountDetail, error) {
+func (q *Queries) GetLoginDetails(ctx context.Context, email string) (AccountDetail, error) {
 	row := q.db.QueryRowContext(ctx, getLoginDetails, email)
 	var i AccountDetail
 	err := row.Scan(
@@ -751,7 +773,7 @@ func (q *Queries) GetPartner(ctx context.Context, id string) (Partner, error) {
 }
 
 const getQuote = `-- name: GetQuote :one
-SELECT id, quote_type, customer_id, source, destination, door_pickup, door_address, door_delivery, delivery_address, liner_id, partner_id, validity, transmit_days, free_days, currency, buy, sell, partner_tax FROM quotes
+SELECT id, quote_type, customer_id, source, destination, door_pickup, door_address, door_delivery, delivery_address, liner_id, partner_id, validity, transmit_days, free_days, currency, buy, sell, partner_tax, quote_status FROM quotes
 WHERE id = $1 AND customer_id=$2 LIMIT 1
 `
 
@@ -782,6 +804,7 @@ func (q *Queries) GetQuote(ctx context.Context, arg GetQuoteParams) (Quote, erro
 		&i.Buy,
 		&i.Sell,
 		&i.PartnerTax,
+		&i.QuoteStatus,
 	)
 	return i, err
 }
@@ -835,7 +858,7 @@ func (q *Queries) ListAccountDetails(ctx context.Context) ([]AccountDetail, erro
 }
 
 const listBookingMilestone = `-- name: ListBookingMilestone :many
-SELECT id, booking_id, milestone_status, created_at, completed_at FROM booking_milestone
+SELECT id, booking_id, milestone_id, milestone_status, created_at, completed_at FROM booking_milestone
 `
 
 func (q *Queries) ListBookingMilestone(ctx context.Context) ([]BookingMilestone, error) {
@@ -850,6 +873,7 @@ func (q *Queries) ListBookingMilestone(ctx context.Context) ([]BookingMilestone,
 		if err := rows.Scan(
 			&i.ID,
 			&i.BookingID,
+			&i.MilestoneID,
 			&i.MilestoneStatus,
 			&i.CreatedAt,
 			&i.CompletedAt,
@@ -868,7 +892,7 @@ func (q *Queries) ListBookingMilestone(ctx context.Context) ([]BookingMilestone,
 }
 
 const listBookingTask = `-- name: ListBookingTask :many
-SELECT id, booking_id, task_status, created_at, completed_at FROM booking_task
+SELECT id, booking_id, task_id, task_status, created_at, completed_at FROM booking_task
 `
 
 func (q *Queries) ListBookingTask(ctx context.Context) ([]BookingTask, error) {
@@ -883,6 +907,7 @@ func (q *Queries) ListBookingTask(ctx context.Context) ([]BookingTask, error) {
 		if err := rows.Scan(
 			&i.ID,
 			&i.BookingID,
+			&i.TaskID,
 			&i.TaskStatus,
 			&i.CreatedAt,
 			&i.CompletedAt,
@@ -901,36 +926,38 @@ func (q *Queries) ListBookingTask(ctx context.Context) ([]BookingTask, error) {
 }
 
 const listBookings = `-- name: ListBookings :many
-SELECT id, booking_request_id, booking_status, customer_id, task_id, quote_id, milestone_id, liner_id, source, destination, city FROM booking
-WHERE customer_id=$1 AND customer_id=$2
+SELECT booking.id, booking.booking_request_id, booking.booking_status, booking.customer_id, booking.source, booking.destination, (SELECT jsonb_agg(booking_milestone) FROM booking_milestone JOIN milestones ON booking_milestone.milestone_id=milestones.id WHERE booking_milestone.booking_id=booking.id) AS milestones, (SELECT jsonb_agg(booking_task) FROM booking_task JOIN tasks ON booking_task.task_id =tasks.id WHERE booking_task.booking_id=booking.id) AS tasks FROM booking WHERE booking.customer_id=$1
 `
 
-type ListBookingsParams struct {
-	CustomerID   sql.NullString
-	CustomerID_2 sql.NullString
+type ListBookingsRow struct {
+	ID               string
+	BookingRequestID string
+	BookingStatus    sql.NullString
+	CustomerID       sql.NullString
+	Source           sql.NullString
+	Destination      sql.NullString
+	Milestones       json.RawMessage
+	Tasks            json.RawMessage
 }
 
-func (q *Queries) ListBookings(ctx context.Context, arg ListBookingsParams) ([]Booking, error) {
-	rows, err := q.db.QueryContext(ctx, listBookings, arg.CustomerID, arg.CustomerID_2)
+func (q *Queries) ListBookings(ctx context.Context, customerID string) ([]ListBookingsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listBookings, customerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Booking
+	var items []ListBookingsRow
 	for rows.Next() {
-		var i Booking
+		var i ListBookingsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.BookingRequestID,
 			&i.BookingStatus,
 			&i.CustomerID,
-			&i.TaskID,
-			&i.QuoteID,
-			&i.MilestoneID,
-			&i.LinerID,
 			&i.Source,
 			&i.Destination,
-			&i.City,
+			&i.Milestones,
+			&i.Tasks,
 		); err != nil {
 			return nil, err
 		}
@@ -1027,7 +1054,7 @@ func (q *Queries) ListPartners(ctx context.Context) ([]Partner, error) {
 }
 
 const listQuotes = `-- name: ListQuotes :many
-SELECT id, quote_type, customer_id, source, destination, door_pickup, door_address, door_delivery, delivery_address, liner_id, partner_id, validity, transmit_days, free_days, currency, buy, sell, partner_tax FROM quotes
+SELECT id, quote_type, customer_id, source, destination, door_pickup, door_address, door_delivery, delivery_address, liner_id, partner_id, validity, transmit_days, free_days, currency, buy, sell, partner_tax, quote_status FROM quotes
 WHERE customer_id=$1
 `
 
@@ -1059,6 +1086,7 @@ func (q *Queries) ListQuotes(ctx context.Context, customerID string) ([]Quote, e
 			&i.Buy,
 			&i.Sell,
 			&i.PartnerTax,
+			&i.QuoteStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -1133,7 +1161,7 @@ INSERT INTO quotes (
     free_days,currency,buy,sell,partner_tax) 
 VALUES (
     $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
-RETURNING id, quote_type, customer_id, source, destination, door_pickup, door_address, door_delivery, delivery_address, liner_id, partner_id, validity, transmit_days, free_days, currency, buy, sell, partner_tax
+RETURNING id, quote_type, customer_id, source, destination, door_pickup, door_address, door_delivery, delivery_address, liner_id, partner_id, validity, transmit_days, free_days, currency, buy, sell, partner_tax, quote_status
 `
 
 type RequestQuoteParams struct {
@@ -1198,6 +1226,7 @@ func (q *Queries) RequestQuote(ctx context.Context, arg RequestQuoteParams) (Quo
 		&i.Buy,
 		&i.Sell,
 		&i.PartnerTax,
+		&i.QuoteStatus,
 	)
 	return i, err
 }
@@ -1219,11 +1248,11 @@ type UpdateAccountDetailsParams struct {
 	ID          string
 	Name        sql.NullString
 	CompanyName sql.NullString
-	Email       sql.NullString
+	Email       string
 	Mobile      sql.NullString
 	Roles       sql.NullString
 	City        sql.NullString
-	Password    sql.NullString
+	Password    string
 }
 
 func (q *Queries) UpdateAccountDetails(ctx context.Context, arg UpdateAccountDetailsParams) error {
@@ -1242,17 +1271,12 @@ func (q *Queries) UpdateAccountDetails(ctx context.Context, arg UpdateAccountDet
 
 const updateBooking = `-- name: UpdateBooking :exec
 UPDATE booking set 
-    Id = $1,
+    id = $1,
     booking_request_id = $2,
     booking_status= $3,
     customer_id = $4,
-    task_id = $5,
-    quote_id = $6,
-    milestone_id = $7,
-    liner_id = $8,
-    source = $9,
-    destination = $10,
-    city = $11
+    source = $5,
+    destination = $6
 WHERE id = $1 AND customer_id=$4
 `
 
@@ -1261,13 +1285,8 @@ type UpdateBookingParams struct {
 	BookingRequestID string
 	BookingStatus    sql.NullString
 	CustomerID       sql.NullString
-	TaskID           sql.NullString
-	QuoteID          sql.NullString
-	MilestoneID      sql.NullString
-	LinerID          sql.NullString
 	Source           sql.NullString
 	Destination      sql.NullString
-	City             sql.NullString
 }
 
 func (q *Queries) UpdateBooking(ctx context.Context, arg UpdateBookingParams) error {
@@ -1276,13 +1295,8 @@ func (q *Queries) UpdateBooking(ctx context.Context, arg UpdateBookingParams) er
 		arg.BookingRequestID,
 		arg.BookingStatus,
 		arg.CustomerID,
-		arg.TaskID,
-		arg.QuoteID,
-		arg.MilestoneID,
-		arg.LinerID,
 		arg.Source,
 		arg.Destination,
-		arg.City,
 	)
 	return err
 }
@@ -1291,15 +1305,17 @@ const updateBookingMilestone = `-- name: UpdateBookingMilestone :exec
 UPDATE booking_milestone set 
     id = $1,
     booking_id = $2,
-    milestone_status = $3,
-    created_at = $4,
-    completed_at = $5
+    milestone_id = $3,
+    milestone_status = $4,
+    created_at = $5,
+    completed_at = $6
 WHERE id = $1
 `
 
 type UpdateBookingMilestoneParams struct {
 	ID              string
 	BookingID       sql.NullString
+	MilestoneID     sql.NullString
 	MilestoneStatus sql.NullString
 	CreatedAt       sql.NullString
 	CompletedAt     sql.NullString
@@ -1309,6 +1325,7 @@ func (q *Queries) UpdateBookingMilestone(ctx context.Context, arg UpdateBookingM
 	_, err := q.db.ExecContext(ctx, updateBookingMilestone,
 		arg.ID,
 		arg.BookingID,
+		arg.MilestoneID,
 		arg.MilestoneStatus,
 		arg.CreatedAt,
 		arg.CompletedAt,
@@ -1320,15 +1337,17 @@ const updateBookingTask = `-- name: UpdateBookingTask :exec
 UPDATE booking_task set 
     id = $1,
     booking_id = $2,
-    task_status = $3,
-    created_at = $4,
-    completed_at = $5
+    task_id = $3,
+    task_status = $4,
+    created_at = $5,
+    completed_at = $6
 WHERE id = $1
 `
 
 type UpdateBookingTaskParams struct {
 	ID          string
 	BookingID   sql.NullString
+	TaskID      sql.NullString
 	TaskStatus  sql.NullString
 	CreatedAt   sql.NullString
 	CompletedAt sql.NullString
@@ -1338,6 +1357,7 @@ func (q *Queries) UpdateBookingTask(ctx context.Context, arg UpdateBookingTaskPa
 	_, err := q.db.ExecContext(ctx, updateBookingTask,
 		arg.ID,
 		arg.BookingID,
+		arg.TaskID,
 		arg.TaskStatus,
 		arg.CreatedAt,
 		arg.CompletedAt,
@@ -1425,6 +1445,9 @@ type UpdateQuoteParams struct {
 }
 
 func (q *Queries) UpdateQuote(ctx context.Context, arg UpdateQuoteParams) error {
+
+	fmt.Printf("\nFinal Quote: %+v, query : %s", arg, updateQuote)
+
 	_, err := q.db.ExecContext(ctx, updateQuote,
 		arg.ID,
 		arg.Buy,
