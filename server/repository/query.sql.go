@@ -48,7 +48,7 @@ func (q *Queries) AdminDeleteQuote(ctx context.Context, id string) error {
 }
 
 const adminGetBooking = `-- name: AdminGetBooking :one
-SELECT booking.id, booking.booking_request_id, booking.booking_status, booking.customer_id, booking.source, booking.destination, (SELECT jsonb_agg(booking_milestone) FROM booking_milestone JOIN milestones ON booking_milestone.milestone_id=milestones.id WHERE booking_milestone.booking_id=booking.id) AS milestones, (SELECT jsonb_agg(booking_task) FROM booking_task JOIN tasks ON booking_task.task_id =tasks.id WHERE booking_task.booking_id=booking.id) AS tasks FROM booking WHERE booking.id = $1 LIMIT 1
+SELECT booking.id, booking.booking_request_id, booking.booking_status, booking.customer_id, booking.source, booking.destination, (SELECT jsonb_agg(booking_milestone) FROM booking_milestone WHERE booking_milestone.booking_id=booking.id) AS milestones, (SELECT jsonb_agg(booking_task) FROM booking_task WHERE booking_task.booking_id=booking.id) AS tasks FROM booking WHERE booking.id = $1 LIMIT 1
 `
 
 func (q *Queries) AdminGetBooking(ctx context.Context, id string) (GetBookingRow, error) {
@@ -100,7 +100,7 @@ func (q *Queries) AdminGetQuote(ctx context.Context, id string) (Quote, error) {
 }
 
 const adminListBookings = `-- name: AdminListBookings :many
-SELECT booking.id, booking.booking_request_id, booking.booking_status, booking.customer_id, booking.source, booking.destination, (SELECT jsonb_agg(booking_milestone) FROM booking_milestone JOIN milestones ON booking_milestone.milestone_id=milestones.id WHERE booking_milestone.booking_id=booking.id) AS milestones, (SELECT jsonb_agg(booking_task) FROM booking_task JOIN tasks ON booking_task.task_id =tasks.id WHERE booking_task.booking_id=booking.id) AS tasks FROM booking
+SELECT booking.id, booking.booking_request_id, booking.booking_status, booking.customer_id, booking.source, booking.destination, (SELECT jsonb_agg(booking_milestone) FROM booking_milestone JOIN milestones ON booking_milestone.milestone_id=milestones.id WHERE booking_milestone.booking_id=booking.id) AS milestones, (SELECT jsonb_agg(booking_task) FROM booking_task WHERE booking_task.booking_id=booking.id) AS tasks FROM booking
 `
 
 type AdminListBookingsRow struct {
@@ -370,16 +370,16 @@ func (q *Queries) CreateBooking(ctx context.Context, arg CreateBookingParams) (B
 
 const createBookingMilestone = `-- name: CreateBookingMilestone :one
 INSERT INTO booking_milestone (
-id, booking_id, milestone_id, milestone_status, created_at, completed_at) 
+id, booking_id, milestone_name, milestone_status, created_at, completed_at) 
 VALUES (
    $1,$2,$3,$4,$5, $6)
-RETURNING id, booking_id, milestone_id, milestone_status, created_at, completed_at
+RETURNING id, booking_id, milestone_name, milestone_status, created_at, completed_at
 `
 
 type CreateBookingMilestoneParams struct {
 	ID              string
 	BookingID       sql.NullString
-	MilestoneID     sql.NullString
+	MilestoneName   sql.NullString
 	MilestoneStatus sql.NullString
 	CreatedAt       sql.NullString
 	CompletedAt     sql.NullString
@@ -389,7 +389,7 @@ func (q *Queries) CreateBookingMilestone(ctx context.Context, arg CreateBookingM
 	row := q.db.QueryRowContext(ctx, createBookingMilestone,
 		arg.ID,
 		arg.BookingID,
-		arg.MilestoneID,
+		arg.MilestoneName,
 		arg.MilestoneStatus,
 		arg.CreatedAt,
 		arg.CompletedAt,
@@ -398,7 +398,7 @@ func (q *Queries) CreateBookingMilestone(ctx context.Context, arg CreateBookingM
 	err := row.Scan(
 		&i.ID,
 		&i.BookingID,
-		&i.MilestoneID,
+		&i.MilestoneName,
 		&i.MilestoneStatus,
 		&i.CreatedAt,
 		&i.CompletedAt,
@@ -408,16 +408,16 @@ func (q *Queries) CreateBookingMilestone(ctx context.Context, arg CreateBookingM
 
 const createBookingTask = `-- name: CreateBookingTask :one
 INSERT INTO booking_task (
-id, booking_id, task_id, task_status, created_at, completed_at) 
+id, booking_id, task_name, task_status, created_at, completed_at) 
 VALUES (
    $1,$2,$3,$4,$5,$6)
-RETURNING id, booking_id, task_id, task_status, created_at, completed_at
+RETURNING id, booking_id, task_name, task_status, created_at, completed_at
 `
 
 type CreateBookingTaskParams struct {
 	ID          string
 	BookingID   sql.NullString
-	TaskID      sql.NullString
+	TaskName    sql.NullString
 	TaskStatus  sql.NullString
 	CreatedAt   sql.NullString
 	CompletedAt sql.NullString
@@ -427,7 +427,7 @@ func (q *Queries) CreateBookingTask(ctx context.Context, arg CreateBookingTaskPa
 	row := q.db.QueryRowContext(ctx, createBookingTask,
 		arg.ID,
 		arg.BookingID,
-		arg.TaskID,
+		arg.TaskName,
 		arg.TaskStatus,
 		arg.CreatedAt,
 		arg.CompletedAt,
@@ -436,7 +436,7 @@ func (q *Queries) CreateBookingTask(ctx context.Context, arg CreateBookingTaskPa
 	err := row.Scan(
 		&i.ID,
 		&i.BookingID,
-		&i.TaskID,
+		&i.TaskName,
 		&i.TaskStatus,
 		&i.CreatedAt,
 		&i.CompletedAt,
@@ -641,7 +641,7 @@ func (q *Queries) GetAccountDetails(ctx context.Context, id string) (AccountDeta
 }
 
 const getBooking = `-- name: GetBooking :one
-SELECT booking.id, booking.booking_request_id, booking.booking_status, booking.customer_id, booking.source, booking.destination, (SELECT jsonb_agg(booking_milestone) FROM booking_milestone JOIN milestones ON booking_milestone.milestone_id=milestones.id WHERE booking_milestone.booking_id=booking.id) AS milestones, (SELECT jsonb_agg(booking_task) FROM booking_task JOIN tasks ON booking_task.task_id =tasks.id WHERE booking_task.booking_id=booking.id) AS tasks FROM booking WHERE booking.id = $1 AND booking.customer_id=$2 LIMIT 1
+SELECT booking.id, booking.booking_request_id, booking.booking_status, booking.customer_id, booking.source, booking.destination, (SELECT jsonb_agg(booking_milestone) FROM booking_milestone JOIN WHERE booking_milestone.booking_id=booking.id) AS milestones, (SELECT jsonb_agg(booking_task) FROM booking_task JOIN WHERE booking_task.booking_id=booking.id) AS tasks FROM booking WHERE booking.id = $1 AND booking.customer_id=$2 LIMIT 1
 `
 
 type GetBookingParams struct {
@@ -677,7 +677,7 @@ func (q *Queries) GetBooking(ctx context.Context, arg GetBookingParams) (GetBook
 }
 
 const getBookingMilestone = `-- name: GetBookingMilestone :one
-SELECT id, booking_id, milestone_id, milestone_status, created_at, completed_at FROM booking_milestone
+SELECT id, booking_id, milestone_name, milestone_status, created_at, completed_at FROM booking_milestone
 WHERE id = $1 LIMIT 1
 `
 
@@ -687,7 +687,7 @@ func (q *Queries) GetBookingMilestone(ctx context.Context, id string) (BookingMi
 	err := row.Scan(
 		&i.ID,
 		&i.BookingID,
-		&i.MilestoneID,
+		&i.MilestoneName,
 		&i.MilestoneStatus,
 		&i.CreatedAt,
 		&i.CompletedAt,
@@ -696,7 +696,7 @@ func (q *Queries) GetBookingMilestone(ctx context.Context, id string) (BookingMi
 }
 
 const getBookingTask = `-- name: GetBookingTask :one
-SELECT id, booking_id, task_id, task_status, created_at, completed_at FROM booking_task
+SELECT id, booking_id, task_name, task_status, created_at, completed_at FROM booking_task
 WHERE id = $1 LIMIT 1
 `
 
@@ -706,7 +706,7 @@ func (q *Queries) GetBookingTask(ctx context.Context, id string) (BookingTask, e
 	err := row.Scan(
 		&i.ID,
 		&i.BookingID,
-		&i.TaskID,
+		&i.TaskName,
 		&i.TaskStatus,
 		&i.CreatedAt,
 		&i.CompletedAt,
@@ -857,7 +857,7 @@ func (q *Queries) ListAccountDetails(ctx context.Context) ([]AccountDetail, erro
 }
 
 const listBookingMilestone = `-- name: ListBookingMilestone :many
-SELECT id, booking_id, milestone_id, milestone_status, created_at, completed_at FROM booking_milestone
+SELECT id, booking_id, milestone_status, created_at, completed_at FROM booking_milestone
 `
 
 func (q *Queries) ListBookingMilestone(ctx context.Context) ([]BookingMilestone, error) {
@@ -872,7 +872,6 @@ func (q *Queries) ListBookingMilestone(ctx context.Context) ([]BookingMilestone,
 		if err := rows.Scan(
 			&i.ID,
 			&i.BookingID,
-			&i.MilestoneID,
 			&i.MilestoneStatus,
 			&i.CreatedAt,
 			&i.CompletedAt,
@@ -891,7 +890,7 @@ func (q *Queries) ListBookingMilestone(ctx context.Context) ([]BookingMilestone,
 }
 
 const listBookingTask = `-- name: ListBookingTask :many
-SELECT id, booking_id, task_id, task_status, created_at, completed_at FROM booking_task
+SELECT id, booking_id, task_status, created_at, completed_at FROM booking_task
 `
 
 func (q *Queries) ListBookingTask(ctx context.Context) ([]BookingTask, error) {
@@ -906,7 +905,6 @@ func (q *Queries) ListBookingTask(ctx context.Context) ([]BookingTask, error) {
 		if err := rows.Scan(
 			&i.ID,
 			&i.BookingID,
-			&i.TaskID,
 			&i.TaskStatus,
 			&i.CreatedAt,
 			&i.CompletedAt,
@@ -925,7 +923,7 @@ func (q *Queries) ListBookingTask(ctx context.Context) ([]BookingTask, error) {
 }
 
 const listBookings = `-- name: ListBookings :many
-SELECT booking.id, booking.booking_request_id, booking.booking_status, booking.customer_id, booking.source, booking.destination, (SELECT jsonb_agg(booking_milestone) FROM booking_milestone JOIN milestones ON booking_milestone.milestone_id=milestones.id WHERE booking_milestone.booking_id=booking.id) AS milestones, (SELECT jsonb_agg(booking_task) FROM booking_task JOIN tasks ON booking_task.task_id =tasks.id WHERE booking_task.booking_id=booking.id) AS tasks FROM booking WHERE booking.customer_id=$1
+SELECT booking.id, booking.booking_request_id, booking.booking_status, booking.customer_id, booking.source, booking.destination, (SELECT jsonb_agg(booking_milestone) FROM booking_milestone JOIN milestones ON booking_milestone.milestone_id=milestones.id WHERE booking_milestone.booking_id=booking.id) AS milestones, (SELECT jsonb_agg(booking_task) FROM booking_task WHERE booking_task.booking_id=booking.id) AS tasks FROM booking WHERE booking.customer_id=$1
 `
 
 type ListBookingsRow struct {
@@ -1326,30 +1324,21 @@ func (q *Queries) UpdateBookingMilestone(ctx context.Context, arg UpdateBookingM
 const updateBookingTask = `-- name: UpdateBookingTask :exec
 UPDATE booking_task set 
     id = $1,
-    booking_id = $2,
-    task_id = $3,
-    task_status = $4,
-    created_at = $5,
-    completed_at = $6
+    task_status = $2,
+    completed_at = $3
 WHERE id = $1
 `
 
 type UpdateBookingTaskParams struct {
 	ID          string
-	BookingID   sql.NullString
-	TaskID      sql.NullString
 	TaskStatus  sql.NullString
-	CreatedAt   sql.NullString
 	CompletedAt sql.NullString
 }
 
 func (q *Queries) UpdateBookingTask(ctx context.Context, arg UpdateBookingTaskParams) error {
 	_, err := q.db.ExecContext(ctx, updateBookingTask,
 		arg.ID,
-		arg.BookingID,
-		arg.TaskID,
 		arg.TaskStatus,
-		arg.CreatedAt,
 		arg.CompletedAt,
 	)
 	return err

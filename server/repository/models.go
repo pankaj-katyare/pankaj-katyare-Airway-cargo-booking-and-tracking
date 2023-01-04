@@ -31,7 +31,7 @@ type Booking struct {
 type BookingMilestone struct {
 	ID              string
 	BookingID       sql.NullString
-	MilestoneID     sql.NullString
+	MilestoneName   sql.NullString
 	MilestoneStatus sql.NullString
 	CreatedAt       sql.NullString
 	CompletedAt     sql.NullString
@@ -40,7 +40,7 @@ type BookingMilestone struct {
 type BookingTask struct {
 	ID          string
 	BookingID   sql.NullString
-	TaskID      sql.NullString
+	TaskName    sql.NullString
 	TaskStatus  sql.NullString
 	CreatedAt   sql.NullString
 	CompletedAt sql.NullString

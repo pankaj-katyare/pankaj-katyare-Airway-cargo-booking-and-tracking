@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/constant"
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/model"
@@ -92,7 +91,7 @@ func (handler BookingMilestoneHandler) UpdateBookingMilestone(context *gin.Conte
 	}
 
 	err := handler.queries.UpdateBookingMilestone(context, repository.UpdateBookingMilestoneParams{
-		ID:              uuid.New().String(),
+		ID:              bookingMilestone.ID,
 		MilestoneStatus: sql.NullString{String: bookingMilestone.MilestoneStatus, Valid: true},
 		CompletedAt:     sql.NullString{String: bookingMilestone.CompletedAt, Valid: true},
 	})

@@ -1,4 +1,15 @@
 -- +goose Up
+CREATE TABLE account_details(
+    id VARCHAR(60) PRIMARY KEY,
+    name VARCHAR(100),
+    company_name VARCHAR(100),
+    email VARCHAR(100) NOT NULL,
+    mobile VARCHAR(20),
+    roles VARCHAR(30),
+    city VARCHAR(60),
+    password VARCHAR(60) NOT NULL
+);
+
 CREATE TABLE quotes(
     id VARCHAR(60) PRIMARY KEY,
     quote_type VARCHAR(40) NOT NULL,
@@ -18,8 +29,7 @@ CREATE TABLE quotes(
     buy VARCHAR(20),
     sell VARCHAR(20),
     partner_tax VARCHAR(20),
-    procurement_id VARCHAR(60),
-    sales_id VARCHAR(60)
+    quote_status varchar(60)
 );
 
 CREATE TABLE booking(
@@ -27,13 +37,8 @@ CREATE TABLE booking(
     booking_request_id VARCHAR(60) NOT NULL,
     booking_status VARCHAR(20),
     customer_id VARCHAR(60),
-    task_id VARCHAR(60),
-    quote_id VARCHAR(60),
-    milestone_id VARCHAR(60),
-    liner_id VARCHAR(60),
     source VARCHAR(100),
-    destination VARCHAR(100),
-    city VARCHAR(60)
+    destination VARCHAR(100)
 );
 
 CREATE TABLE partners(
@@ -46,30 +51,10 @@ CREATE TABLE liners(
     name VARCHAR(100) 
 );
 
-CREATE TABLE account_details(
-    id VARCHAR(60) PRIMARY KEY,
-    name VARCHAR(100),
-    company_name VARCHAR(100),
-    email VARCHAR(100),
-    mobile VARCHAR(20),
-    roles VARCHAR(30),
-    city VARCHAR(60),
-    password VARCHAR(60)
-);
-
-CREATE TABLE tasks(
-    id VARCHAR(60) PRIMARY KEY,
-    name VARCHAR(100) 
-);
-
-CREATE TABLE milestones(
-    id VARCHAR(60) PRIMARY KEY,
-    name VARCHAR(100) 
-);
-
 CREATE TABLE booking_milestone(
     id VARCHAR(60) PRIMARY KEY,
     booking_id VARCHAR(60),
+    milestone_name VARCHAR(60),
     milestone_status VARCHAR(20) ,
     created_at TEXT,
     completed_at TEXT
@@ -78,6 +63,7 @@ CREATE TABLE booking_milestone(
 CREATE TABLE booking_task(
     id VARCHAR(60) PRIMARY KEY,
     booking_id VARCHAR(60),
+    task_name VARCHAR(60),
     task_status VARCHAR(20) ,
     created_at TEXT,
     completed_at TEXT
@@ -104,7 +90,5 @@ DROP TABLE booking CASCADE;
 DROP TABLE partners CASCADE;
 DROP TABLE liners CASCADE;
 DROP TABLE account_details CASCADE;
-DROP TABLE tasks CASCADE;
-DROP TABLE milestones CASCADE;
 DROP TABLE booking_milestone CASCADE;
 DROP TABLE booking_task CASCADE;

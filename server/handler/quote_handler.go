@@ -452,7 +452,7 @@ func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
 	_, err = handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
 		ID:              uuid.New().String(),
 		BookingID:       sql.NullString{String: booking.ID, Valid: true},
-		MilestoneID:     sql.NullString{String: "1", Valid: true},
+		MilestoneName:   sql.NullString{String: "Booking Created", Valid: true},
 		MilestoneStatus: sql.NullString{String: constant.MILESTONE_COMPLETED, Valid: true},
 		CreatedAt:       sql.NullString{String: time.Now().UTC().String(), Valid: true},
 		CompletedAt:     sql.NullString{Valid: false},
@@ -464,7 +464,7 @@ func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
 	_, err = handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
 		ID:              uuid.New().String(),
 		BookingID:       sql.NullString{String: booking.ID, Valid: true},
-		MilestoneID:     sql.NullString{String: "2", Valid: true},
+		MilestoneName:   sql.NullString{String: "Booking Confirmed", Valid: true},
 		MilestoneStatus: sql.NullString{String: constant.MILESTONE_COMPLETED, Valid: true},
 		CreatedAt:       sql.NullString{String: time.Now().UTC().String(), Valid: true},
 		CompletedAt:     sql.NullString{Valid: false},
@@ -476,7 +476,7 @@ func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
 	_, err = handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
 		ID:              uuid.New().String(),
 		BookingID:       sql.NullString{String: booking.ID, Valid: true},
-		MilestoneID:     sql.NullString{String: "3", Valid: true},
+		MilestoneName:   sql.NullString{String: "Vessel Departured", Valid: true},
 		MilestoneStatus: sql.NullString{String: constant.MILESTONE_IN_PROGRESS, Valid: true},
 		CreatedAt:       sql.NullString{String: time.Now().UTC().String(), Valid: true},
 		CompletedAt:     sql.NullString{Valid: false},
@@ -489,7 +489,7 @@ func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
 	_, err = handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
 		ID:              uuid.New().String(),
 		BookingID:       sql.NullString{String: booking.ID, Valid: true},
-		MilestoneID:     sql.NullString{String: "4", Valid: true},
+		MilestoneName:   sql.NullString{String: "Vessel Arrived", Valid: true},
 		MilestoneStatus: sql.NullString{String: constant.MILESTONE_IN_PROGRESS, Valid: true},
 		CreatedAt:       sql.NullString{String: time.Now().UTC().String(), Valid: true},
 		CompletedAt:     sql.NullString{Valid: false},
@@ -502,7 +502,7 @@ func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
 	_, err = handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
 		ID:              uuid.New().String(),
 		BookingID:       sql.NullString{String: booking.ID, Valid: true},
-		MilestoneID:     sql.NullString{String: "5", Valid: true},
+		MilestoneName:   sql.NullString{String: "Booking Complete", Valid: true},
 		MilestoneStatus: sql.NullString{String: constant.MILESTONE_IN_PROGRESS, Valid: true},
 		CreatedAt:       sql.NullString{String: time.Now().UTC().String(), Valid: true},
 		CompletedAt:     sql.NullString{Valid: false},
@@ -515,7 +515,7 @@ func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
 	_, err = handler.queries.CreateBookingTask(context, repository.CreateBookingTaskParams{
 		ID:          uuid.New().String(),
 		BookingID:   sql.NullString{String: booking.ID, Valid: true},
-		TaskID:      sql.NullString{String: "1", Valid: true},
+		TaskName:    sql.NullString{String: "Generate Invoice", Valid: true},
 		TaskStatus:  sql.NullString{String: constant.TASK_IN_PROGRESS, Valid: true},
 		CreatedAt:   sql.NullString{String: time.Now().UTC().String(), Valid: true},
 		CompletedAt: sql.NullString{Valid: false},
@@ -528,7 +528,7 @@ func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
 	_, err = handler.queries.CreateBookingTask(context, repository.CreateBookingTaskParams{
 		ID:          uuid.New().String(),
 		BookingID:   sql.NullString{String: booking.ID, Valid: true},
-		TaskID:      sql.NullString{String: "2", Valid: true},
+		TaskName:    sql.NullString{String: "Create HBL", Valid: true},
 		TaskStatus:  sql.NullString{String: constant.TASK_IN_PROGRESS, Valid: true},
 		CreatedAt:   sql.NullString{String: time.Now().UTC().String(), Valid: true},
 		CompletedAt: sql.NullString{Valid: false},
@@ -541,7 +541,7 @@ func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
 	_, err = handler.queries.CreateBookingTask(context, repository.CreateBookingTaskParams{
 		ID:          uuid.New().String(),
 		BookingID:   sql.NullString{String: booking.ID, Valid: true},
-		TaskID:      sql.NullString{String: "3", Valid: true},
+		TaskName:    sql.NullString{String: "Upload Documents", Valid: true},
 		TaskStatus:  sql.NullString{String: constant.TASK_IN_PROGRESS, Valid: true},
 		CreatedAt:   sql.NullString{String: time.Now().UTC().String(), Valid: true},
 		CompletedAt: sql.NullString{Valid: false},

@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/repository"
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/response"
@@ -62,16 +61,18 @@ func (handler BookingTaskHandler) UpdateBookingTask(context *gin.Context) {
 		return
 	}
 
-	state := handler.queries.UpdateBookingTask(context, repository.UpdateBookingTaskParams{
-		ID:          uuid.New().String(),
+	err := handler.queries.UpdateBookingTask(context, repository.UpdateBookingTaskParams{
+		ID:          bookingTask.ID,
 		TaskStatus:  sql.NullString{String: bookingTask.TaskStatus, Valid: true},
 		CompletedAt: sql.NullString{String: bookingTask.CompletedAt, Valid: true},
 	})
 
-	// TODO return, nothing to update
+	if err != nil {
+		response.ErrorResponse(context, http.StatusBadRequest, "Unable to update task")
+		return
+	}
 	response.SuccessResponse(context, map[string]interface{}{
 		"code":    "success",
 		"message": "Updated suceessfully",
-		"data":    state,
 	})
 }
