@@ -8,8 +8,9 @@ require (
 	github.com/alexflint/go-filemutex v1.1.0 // indirect
 	github.com/appleboy/gin-jwt/v2 v2.6.3
 	github.com/coreos/go-oidc/v3 v3.4.0
+	github.com/gin-contrib/cors v1.4.0 // indirect
 	github.com/gin-contrib/sessions v0.0.5
-	github.com/gin-gonic/gin v1.7.4
+	github.com/gin-gonic/gin v1.8.1
 	github.com/go-openapi/spec v0.20.7 // indirect
 	github.com/go-openapi/swag v0.22.3 // indirect
 	github.com/go-sql-driver/mysql v1.6.0
@@ -21,6 +22,7 @@ require (
 	github.com/kataras/jwt v0.1.8 // indirect
 	github.com/khaiql/dbcleaner v2.3.0+incompatible // indirect
 	github.com/lib/pq v1.10.3
+	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible // indirect
 	github.com/pressly/goose v2.6.0+incompatible // indirect
 	github.com/satori/go.uuid v1.2.0 // indirect
@@ -30,6 +32,7 @@ require (
 	github.com/swaggo/http-swagger v1.3.3 // indirect
 	github.com/swaggo/swag v1.8.9
 	github.com/urfave/cli v1.22.2 // indirect
+	github.com/valyala/fastjson v1.6.4 // indirect
 	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/net v0.4.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20220822191816-0ebed06d0094

@@ -65,11 +65,32 @@ func (handler QuoteHandler) RequestQuote(context *gin.Context) {
 		response.ErrorResponse(context, http.StatusBadRequest, "Error inserting quote")
 		return
 	}
+	item := ListAllQuotesResult{
+		ID:              state.ID,
+		QuoteType:       state.QuoteType,
+		CustomerID:      state.CustomerID,
+		Source:          state.Source,
+		Destination:     state.Destination,
+		DoorPickup:      state.DoorPickup.String,
+		DoorAddress:     state.DoorAddress.String,
+		DoorDelivery:    state.DoorDelivery.String,
+		DeliveryAddress: state.DeliveryAddress.String,
+		LinerID:         state.LinerID.String,
+		PartnerID:       state.PartnerID.String,
+		Validity:        state.Validity.String,
+		TransmitDays:    state.TransmitDays.String,
+		FreeDays:        state.FreeDays.String,
+		Currency:        state.Currency.String,
+		Buy:             state.Buy.String,
+		Sell:            state.Sell.String,
+		PartnerTax:      state.PartnerTax.String,
+		QuoteStatus:     state.QuoteStatus.String,
+	}
 
 	response.SuccessResponse(context, map[string]interface{}{
 		"code":    "success",
 		"message": "Request Quote Created successfuly",
-		"data":    state,
+		"data":    item,
 	})
 }
 
@@ -108,10 +129,32 @@ func (handler QuoteHandler) GetQuoteByID(context *gin.Context) {
 		return
 	}
 
+	item := ListAllQuotesResult{
+		ID:              quote.ID,
+		QuoteType:       quote.QuoteType,
+		CustomerID:      quote.CustomerID,
+		Source:          quote.Source,
+		Destination:     quote.Destination,
+		DoorPickup:      quote.DoorPickup.String,
+		DoorAddress:     quote.DoorAddress.String,
+		DoorDelivery:    quote.DoorDelivery.String,
+		DeliveryAddress: quote.DeliveryAddress.String,
+		LinerID:         quote.LinerID.String,
+		PartnerID:       quote.PartnerID.String,
+		Validity:        quote.Validity.String,
+		TransmitDays:    quote.TransmitDays.String,
+		FreeDays:        quote.FreeDays.String,
+		Currency:        quote.Currency.String,
+		Buy:             quote.Buy.String,
+		Sell:            quote.Sell.String,
+		PartnerTax:      quote.PartnerTax.String,
+		QuoteStatus:     quote.QuoteStatus.String,
+	}
+
 	response.SuccessResponse(context, map[string]interface{}{
 		"code":    "success",
-		"message": "quote Data",
-		"data":    quote,
+		"message": "Quote found",
+		"data":    item,
 	})
 }
 
@@ -139,15 +182,7 @@ func (handler QuoteHandler) UpdateQuote(context *gin.Context) {
 	var data repository.Quote
 	var err error
 
-	if claims.Role == constant.CUSTOMER_ROLE {
-		data, err = handler.queries.GetQuote(context, repository.GetQuoteParams{
-			ID:         updateQuoteRequest.ID,
-			CustomerID: claims.CustomerID,
-		})
-	} else {
-		data, err = handler.queries.AdminGetQuote(context, updateQuoteRequest.ID)
-		fmt.Println("quote data:", data)
-	}
+	data, err = handler.queries.AdminGetQuote(context, updateQuoteRequest.ID)
 
 	if err != nil {
 		fmt.Println("Error:  ", err)
@@ -215,7 +250,8 @@ func (handler QuoteHandler) UpdateQuote(context *gin.Context) {
 		data.Currency.Valid = true
 	}
 
-	finalQuote := repository.UpdateQuoteParams{
+	finalQuote := repository.AdminUpdateQuoteParams{
+		ID:           data.ID,
 		LinerID:      data.LinerID,
 		PartnerID:    data.PartnerID,
 		Validity:     data.Validity,
@@ -225,14 +261,11 @@ func (handler QuoteHandler) UpdateQuote(context *gin.Context) {
 		Buy:          data.Buy,
 		Sell:         data.Sell,
 		PartnerTax:   data.PartnerTax,
-		CustomerID:   data.CustomerID,
 	}
-	fmt.Printf("\nFinal Quote: %+v", finalQuote)
 
-	err = handler.queries.UpdateQuote(context, finalQuote)
+	err = handler.queries.AdminUpdateQuote(context, finalQuote)
 
 	if err != nil {
-		fmt.Println("Error:  ", err)
 		response.SuccessResponse(context, map[string]interface{}{
 			"code":    "failed",
 			"message": "Error updating quote in database",
@@ -240,19 +273,53 @@ func (handler QuoteHandler) UpdateQuote(context *gin.Context) {
 		return
 	}
 
+	item := ListAllQuotesResult{
+		ID:              data.ID,
+		QuoteType:       data.QuoteType,
+		CustomerID:      data.CustomerID,
+		Source:          data.Source,
+		Destination:     data.Destination,
+		DoorPickup:      data.DoorPickup.String,
+		DoorAddress:     data.DoorAddress.String,
+		DoorDelivery:    data.DoorDelivery.String,
+		DeliveryAddress: data.DeliveryAddress.String,
+		LinerID:         data.LinerID.String,
+		PartnerID:       data.PartnerID.String,
+		Validity:        data.Validity.String,
+		TransmitDays:    data.TransmitDays.String,
+		FreeDays:        data.FreeDays.String,
+		Currency:        data.Currency.String,
+		Buy:             data.Buy.String,
+		Sell:            data.Sell.String,
+		PartnerTax:      data.PartnerTax.String,
+		QuoteStatus:     data.QuoteStatus.String,
+	}
+
 	// TODO return, quote updated successfuly
 	response.SuccessResponse(context, map[string]interface{}{
 		"code":    "success",
 		"message": "Quote updated successfuly",
-		"data":    data,
+		"data":    item,
 	})
 }
 
 func (handler QuoteHandler) GetAllQuote(context *gin.Context) {
+	var tokenData interface{}
+	tokenData, isExists := context.Get("claims")
+	if !isExists {
+		response.ErrorResponse(context, http.StatusUnauthorized, "Claims not found in request, request unauthorised")
+		return
+	}
 
-	customer_id := context.Request.URL.Query().Get("customer_id")
+	claims := tokenData.(model.TokenData)
 
-	quotes, err := handler.queries.ListQuotes(context, customer_id)
+	var quotes []repository.Quote
+	var err error
+	if claims.Role == constant.CUSTOMER_ROLE {
+		quotes, err = handler.queries.ListQuotes(context, claims.CustomerID)
+	} else {
+		quotes, err = handler.queries.AdminListQuotes(context)
+	}
 
 	if err != nil {
 		response.SuccessResponse(context, map[string]interface{}{
@@ -263,11 +330,60 @@ func (handler QuoteHandler) GetAllQuote(context *gin.Context) {
 		return
 	}
 
-	response.SuccessResponse(context, map[string]interface{}{
+	var dataMap []ListAllQuotesResult
+	for _, quote := range quotes {
+		item := ListAllQuotesResult{
+			ID:              quote.ID,
+			QuoteType:       quote.QuoteType,
+			CustomerID:      quote.CustomerID,
+			Source:          quote.Source,
+			Destination:     quote.Destination,
+			DoorPickup:      quote.DoorPickup.String,
+			DoorAddress:     quote.DoorAddress.String,
+			DoorDelivery:    quote.DoorDelivery.String,
+			DeliveryAddress: quote.DeliveryAddress.String,
+			LinerID:         quote.LinerID.String,
+			PartnerID:       quote.PartnerID.String,
+			Validity:        quote.Validity.String,
+			TransmitDays:    quote.TransmitDays.String,
+			FreeDays:        quote.FreeDays.String,
+			Currency:        quote.Currency.String,
+			Buy:             quote.Buy.String,
+			Sell:            quote.Sell.String,
+			PartnerTax:      quote.PartnerTax.String,
+			QuoteStatus:     quote.QuoteStatus.String,
+		}
+		dataMap = append(dataMap, item)
+	}
+	result := map[string]interface{}{
 		"code":    "success",
 		"message": "Fetched all quote list",
-		"data":    quotes,
-	})
+		"data":    dataMap,
+	}
+
+	response.SuccessResponse(context, result)
+}
+
+type ListAllQuotesResult struct {
+	ID              string `json:"id"`
+	QuoteType       string `json:"quote_type"`
+	CustomerID      string `json:"customer_id"`
+	Source          string `json:"source"`
+	Destination     string `json:"destination"`
+	DoorPickup      string `json:"door_pickup"`
+	DoorAddress     string `json:"door_address"`
+	DoorDelivery    string `json:"door_delivery"`
+	DeliveryAddress string `json:"delivery_address"`
+	LinerID         string `json:"liner_id"`
+	PartnerID       string `json:"partner_id"`
+	Validity        string `json:"validity"`
+	TransmitDays    string `json:"transmit_days"`
+	FreeDays        string `json:"free_days"`
+	Currency        string `json:"currency"`
+	Buy             string `json:"buy"`
+	Sell            string `json:"sell"`
+	PartnerTax      string `json:"partner_tax"`
+	QuoteStatus     string `json:"quote_status"`
 }
 
 func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
@@ -333,7 +449,7 @@ func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
 		return
 	}
 
-	handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
+	_, err = handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
 		ID:              uuid.New().String(),
 		BookingID:       sql.NullString{String: booking.ID, Valid: true},
 		MilestoneID:     sql.NullString{String: "1", Valid: true},
@@ -341,7 +457,11 @@ func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
 		CreatedAt:       sql.NullString{String: time.Now().UTC().String(), Valid: true},
 		CompletedAt:     sql.NullString{Valid: false},
 	})
-	handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
+	if err != nil {
+		response.ErrorResponse(context, http.StatusNotFound, "Unable to create Milestone 1")
+		return
+	}
+	_, err = handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
 		ID:              uuid.New().String(),
 		BookingID:       sql.NullString{String: booking.ID, Valid: true},
 		MilestoneID:     sql.NullString{String: "2", Valid: true},
@@ -349,7 +469,11 @@ func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
 		CreatedAt:       sql.NullString{String: time.Now().UTC().String(), Valid: true},
 		CompletedAt:     sql.NullString{Valid: false},
 	})
-	handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
+	if err != nil {
+		response.ErrorResponse(context, http.StatusNotFound, "Unable to create Milestone 2")
+		return
+	}
+	_, err = handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
 		ID:              uuid.New().String(),
 		BookingID:       sql.NullString{String: booking.ID, Valid: true},
 		MilestoneID:     sql.NullString{String: "3", Valid: true},
@@ -357,7 +481,12 @@ func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
 		CreatedAt:       sql.NullString{String: time.Now().UTC().String(), Valid: true},
 		CompletedAt:     sql.NullString{Valid: false},
 	})
-	handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
+	if err != nil {
+		response.ErrorResponse(context, http.StatusNotFound, "Unable to create Milestone 3")
+		return
+	}
+
+	_, err = handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
 		ID:              uuid.New().String(),
 		BookingID:       sql.NullString{String: booking.ID, Valid: true},
 		MilestoneID:     sql.NullString{String: "4", Valid: true},
@@ -365,7 +494,12 @@ func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
 		CreatedAt:       sql.NullString{String: time.Now().UTC().String(), Valid: true},
 		CompletedAt:     sql.NullString{Valid: false},
 	})
-	handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
+	if err != nil {
+		response.ErrorResponse(context, http.StatusNotFound, "Unable to create Milestone 4")
+		return
+	}
+
+	_, err = handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
 		ID:              uuid.New().String(),
 		BookingID:       sql.NullString{String: booking.ID, Valid: true},
 		MilestoneID:     sql.NullString{String: "5", Valid: true},
@@ -373,7 +507,12 @@ func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
 		CreatedAt:       sql.NullString{String: time.Now().UTC().String(), Valid: true},
 		CompletedAt:     sql.NullString{Valid: false},
 	})
-	handler.queries.CreateBookingTask(context, repository.CreateBookingTaskParams{
+	if err != nil {
+		response.ErrorResponse(context, http.StatusNotFound, "Unable to create Milestone 5")
+		return
+	}
+
+	_, err = handler.queries.CreateBookingTask(context, repository.CreateBookingTaskParams{
 		ID:          uuid.New().String(),
 		BookingID:   sql.NullString{String: booking.ID, Valid: true},
 		TaskID:      sql.NullString{String: "1", Valid: true},
@@ -381,7 +520,12 @@ func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
 		CreatedAt:   sql.NullString{String: time.Now().UTC().String(), Valid: true},
 		CompletedAt: sql.NullString{Valid: false},
 	})
-	handler.queries.CreateBookingTask(context, repository.CreateBookingTaskParams{
+	if err != nil {
+		response.ErrorResponse(context, http.StatusNotFound, "Unable to create Task 1")
+		return
+	}
+
+	_, err = handler.queries.CreateBookingTask(context, repository.CreateBookingTaskParams{
 		ID:          uuid.New().String(),
 		BookingID:   sql.NullString{String: booking.ID, Valid: true},
 		TaskID:      sql.NullString{String: "2", Valid: true},
@@ -389,7 +533,12 @@ func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
 		CreatedAt:   sql.NullString{String: time.Now().UTC().String(), Valid: true},
 		CompletedAt: sql.NullString{Valid: false},
 	})
-	handler.queries.CreateBookingTask(context, repository.CreateBookingTaskParams{
+	if err != nil {
+		response.ErrorResponse(context, http.StatusNotFound, "Unable to create Task 2")
+		return
+	}
+
+	_, err = handler.queries.CreateBookingTask(context, repository.CreateBookingTaskParams{
 		ID:          uuid.New().String(),
 		BookingID:   sql.NullString{String: booking.ID, Valid: true},
 		TaskID:      sql.NullString{String: "3", Valid: true},
@@ -397,10 +546,25 @@ func (handler QuoteHandler) ConfirmQuote(context *gin.Context) {
 		CreatedAt:   sql.NullString{String: time.Now().UTC().String(), Valid: true},
 		CompletedAt: sql.NullString{Valid: false},
 	})
+	if err != nil {
+		response.ErrorResponse(context, http.StatusNotFound, "Unable to create Task 3")
+		return
+	}
+
+	err = handler.queries.AdminConfirmQuote(context, repository.AdminConfirmQuoteParams{
+		QuoteStatus: sql.NullString{String: constant.QUOTE_CONFIRMED, Valid: true},
+		ID:          confirmQuote.QuoteID,
+	})
+
+	if err != nil {
+		response.ErrorResponse(context, http.StatusNotFound, "Unable to Quote status to ")
+		return
+	}
 
 	response.SuccessResponse(context, map[string]interface{}{
-		"code":    "success",
-		"message": "Quote Confirm successfully",
+		"code":       "success",
+		"message":    "Quote Confirm successfully",
+		"booking_id": booking.ID,
 	})
 
 }

@@ -104,10 +104,11 @@ func (handler AccountHandler) Login(context *gin.Context) {
 		return
 	}
 
-	context.Header("auth-bearer", string(token))
 	response.SuccessResponse(context, map[string]interface{}{
 		"code":    "success",
 		"message": "login successfully",
+		"token":   string(token),
+		"email":   state.Email,
 	})
 }
 

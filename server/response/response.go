@@ -15,6 +15,10 @@ func Response(context *gin.Context, statusCode int, data interface{}) {
 	context.JSON(statusCode, data)
 }
 
+func ResponseBytes(context *gin.Context, statusCode int, data []byte) {
+	context.Data(statusCode, "application/json", data)
+}
+
 func SuccessResponse(context *gin.Context, data interface{}) {
 	Response(context, http.StatusOK, data)
 }

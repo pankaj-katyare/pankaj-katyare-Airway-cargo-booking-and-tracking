@@ -9,7 +9,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 )
 
 const adminConfirmQuote = `-- name: AdminConfirmQuote :exec
@@ -115,15 +114,15 @@ type AdminListBookingsRow struct {
 	Tasks            json.RawMessage
 }
 
-func (q *Queries) AdminListBookings(ctx context.Context) ([]AdminListBookingsRow, error) {
+func (q *Queries) AdminListBookings(ctx context.Context) ([]GetBookingRow, error) {
 	rows, err := q.db.QueryContext(ctx, adminListBookings)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AdminListBookingsRow
+	var items []GetBookingRow
 	for rows.Next() {
-		var i AdminListBookingsRow
+		var i GetBookingRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.BookingRequestID,
@@ -653,10 +652,10 @@ type GetBookingParams struct {
 type GetBookingRow struct {
 	ID               string
 	BookingRequestID string
-	BookingStatus    sql.NullString
-	CustomerID       sql.NullString
-	Source           sql.NullString
-	Destination      sql.NullString
+	BookingStatus    string
+	CustomerID       string
+	Source           string
+	Destination      string
 	Milestones       json.RawMessage
 	Tasks            json.RawMessage
 }
@@ -940,15 +939,15 @@ type ListBookingsRow struct {
 	Tasks            json.RawMessage
 }
 
-func (q *Queries) ListBookings(ctx context.Context, customerID string) ([]ListBookingsRow, error) {
+func (q *Queries) ListBookings(ctx context.Context, customerID string) ([]GetBookingRow, error) {
 	rows, err := q.db.QueryContext(ctx, listBookings, customerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListBookingsRow
+	var items []GetBookingRow
 	for rows.Next() {
-		var i ListBookingsRow
+		var i GetBookingRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.BookingRequestID,
@@ -1445,9 +1444,6 @@ type UpdateQuoteParams struct {
 }
 
 func (q *Queries) UpdateQuote(ctx context.Context, arg UpdateQuoteParams) error {
-
-	fmt.Printf("\nFinal Quote: %+v, query : %s", arg, updateQuote)
-
 	_, err := q.db.ExecContext(ctx, updateQuote,
 		arg.ID,
 		arg.Buy,
@@ -1460,7 +1456,7 @@ func (q *Queries) UpdateQuote(ctx context.Context, arg UpdateQuoteParams) error 
 		arg.Currency,
 		arg.PartnerTax,
 		arg.CustomerID,
-	)
+	)		
 	return err
 }
 

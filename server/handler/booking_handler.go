@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/constant"
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/model"
@@ -24,38 +23,6 @@ func NewBookingHandler(DB *sqlx.DB) *BookingHandler {
 		DB:      DB,
 		queries: repository.New(DB),
 	}
-}
-
-func (handler BookingHandler) CreateBooking(context *gin.Context) {
-
-	var booking model.Booking
-
-	if err := context.ShouldBind(&booking); err != nil {
-		response.ErrorResponse(context, http.StatusBadRequest, "Required fields are empty")
-		return
-	}
-
-	state, err := handler.queries.CreateBooking(context, repository.CreateBookingParams{
-		ID:               uuid.New().String(),
-		BookingRequestID: uuid.New().String(),
-		BookingStatus:    sql.NullString{String: booking.Status, Valid: true},
-		CustomerID:       sql.NullString{String: booking.CustomerId, Valid: true},
-		Source:           sql.NullString{String: booking.Source, Valid: true},
-		Destination:      sql.NullString{String: booking.Destination, Valid: true},
-	})
-
-	if err != nil {
-		fmt.Println("error", err)
-		response.ErrorResponse(context, http.StatusBadRequest, "Error inserting Booking")
-		return
-	}
-
-	response.SuccessResponse(context, map[string]interface{}{
-		"code":    "success",
-		"message": "Request Booking Created successfuly",
-		"data":    state,
-	})
-
 }
 
 func (handler BookingHandler) GetBookingByID(context *gin.Context) {
@@ -144,12 +111,11 @@ func (handler BookingHandler) ListBookings(context *gin.Context) {
 
 	claims := tokenData.(model.TokenData)
 
-	booking := []repository.ListBookingsRow{}
-	bookings := []repository.AdminListBookingsRow{}
+	var bookings []repository.GetBookingRow
 	var err error
 	if claims.Role == constant.CUSTOMER_ROLE {
 
-		booking, err = handler.queries.ListBookings(context, claims.CustomerID)
+		bookings, err = handler.queries.ListBookings(context, claims.CustomerID)
 		if err != nil {
 			response.SuccessResponse(context, map[string]interface{}{
 				"code":    "success",
@@ -162,7 +128,7 @@ func (handler BookingHandler) ListBookings(context *gin.Context) {
 		response.SuccessResponse(context, map[string]interface{}{
 			"code":    "success",
 			"message": "Fetched all booking list",
-			"data":    booking,
+			"data":    bookings,
 		})
 		return
 
