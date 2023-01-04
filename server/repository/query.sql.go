@@ -1303,30 +1303,21 @@ func (q *Queries) UpdateBooking(ctx context.Context, arg UpdateBookingParams) er
 const updateBookingMilestone = `-- name: UpdateBookingMilestone :exec
 UPDATE booking_milestone set 
     id = $1,
-    booking_id = $2,
-    milestone_id = $3,
-    milestone_status = $4,
-    created_at = $5,
-    completed_at = $6
+    milestone_status = $2,
+    completed_at = $3
 WHERE id = $1
 `
 
 type UpdateBookingMilestoneParams struct {
 	ID              string
-	BookingID       sql.NullString
-	MilestoneID     sql.NullString
 	MilestoneStatus sql.NullString
-	CreatedAt       sql.NullString
 	CompletedAt     sql.NullString
 }
 
 func (q *Queries) UpdateBookingMilestone(ctx context.Context, arg UpdateBookingMilestoneParams) error {
 	_, err := q.db.ExecContext(ctx, updateBookingMilestone,
 		arg.ID,
-		arg.BookingID,
-		arg.MilestoneID,
 		arg.MilestoneStatus,
-		arg.CreatedAt,
 		arg.CompletedAt,
 	)
 	return err

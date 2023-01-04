@@ -2,7 +2,6 @@ package handler
 
 import (
 	"database/sql"
-	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -23,36 +22,6 @@ func NewBookingTaskHandler(DB *sqlx.DB) *BookingTaskHandler {
 		DB:      DB,
 		queries: repository.New(DB),
 	}
-}
-
-func (handler BookingTaskHandler) CreateBookingTask(context *gin.Context) {
-
-	var bookingTask repository.BookingTask
-
-	if err := context.ShouldBind(&bookingTask); err != nil {
-		response.ErrorResponse(context, http.StatusBadRequest, "Required fields are empty")
-		fmt.Println("error", err)
-		return
-	}
-
-	state, err := handler.queries.CreateBookingTask(context, repository.CreateBookingTaskParams{
-		ID:          uuid.New().String(),
-		BookingID:   sql.NullString{String: bookingTask.BookingID.String, Valid: true},
-		TaskStatus:  sql.NullString{String: bookingTask.TaskStatus.String, Valid: true},
-		CreatedAt:   sql.NullString{String: bookingTask.CreatedAt.String, Valid: true},
-		CompletedAt: sql.NullString{String: bookingTask.CompletedAt.String, Valid: true},
-	})
-	if err != nil {
-		fmt.Println("error", err)
-		response.ErrorResponse(context, http.StatusBadRequest, "Error inserting Booking milestone")
-		return
-	}
-
-	response.SuccessResponse(context, map[string]interface{}{
-		"code":    "success",
-		"message": "Request Booking milestone Created successfuly",
-		"data":    state,
-	})
 }
 
 func (handler BookingTaskHandler) GetBookingTask(context *gin.Context) {
@@ -78,9 +47,15 @@ func (handler BookingTaskHandler) GetBookingTask(context *gin.Context) {
 	})
 }
 
+type UpdateBookingTaskRequest struct {
+	ID          string `json:"id"`
+	TaskStatus  string `json:"task_status"`
+	CompletedAt string `json:"completed_at"`
+}
+
 func (handler BookingTaskHandler) UpdateBookingTask(context *gin.Context) {
 
-	var bookingTask repository.BookingTask
+	var bookingTask UpdateBookingTaskRequest
 
 	if err := context.ShouldBind(&bookingTask); err != nil {
 		response.ErrorResponse(context, http.StatusBadRequest, "Required fields are empty")
@@ -89,10 +64,8 @@ func (handler BookingTaskHandler) UpdateBookingTask(context *gin.Context) {
 
 	state := handler.queries.UpdateBookingTask(context, repository.UpdateBookingTaskParams{
 		ID:          uuid.New().String(),
-		BookingID:   bookingTask.BookingID,
-		TaskStatus:  bookingTask.TaskStatus,
-		CreatedAt:   bookingTask.CreatedAt,
-		CompletedAt: bookingTask.CompletedAt,
+		TaskStatus:  sql.NullString{String: bookingTask.TaskStatus, Valid: true},
+		CompletedAt: sql.NullString{String: bookingTask.CompletedAt, Valid: true},
 	})
 
 	// TODO return, nothing to update
@@ -100,25 +73,5 @@ func (handler BookingTaskHandler) UpdateBookingTask(context *gin.Context) {
 		"code":    "success",
 		"message": "Updated suceessfully",
 		"data":    state,
-	})
-}
-
-func (handler BookingTaskHandler) ListBookingTask(context *gin.Context) {
-
-	bookingMilestones, err := handler.queries.ListBookingTask(context)
-
-	if err != nil {
-		response.SuccessResponse(context, map[string]interface{}{
-			"code":    "success",
-			"message": "Error int get all account",
-			"error":   err,
-		})
-		return
-	}
-
-	response.SuccessResponse(context, map[string]interface{}{
-		"code":    "success",
-		"message": "Fetched all account list",
-		"data":    bookingMilestones,
 	})
 }

@@ -2,11 +2,12 @@ package handler
 
 import (
 	"database/sql"
-	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/constant"
+	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/model"
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/repository"
 	"github.com/pankaj-katyare-wiz/airway-cargo-shipping-tracking/server/response"
 
@@ -25,37 +26,20 @@ func NewBookingMilestoneHandler(DB *sqlx.DB) *BookingMilestoneHandler {
 	}
 }
 
-func (handler BookingMilestoneHandler) CreateBookingMilestone(context *gin.Context) {
-
-	var bookingMilestone repository.BookingMilestone
-
-	if err := context.ShouldBind(&bookingMilestone); err != nil {
-		response.ErrorResponse(context, http.StatusBadRequest, "Required fields are empty")
-		fmt.Println("error", err)
-		return
-	}
-
-	state, err := handler.queries.CreateBookingMilestone(context, repository.CreateBookingMilestoneParams{
-		ID:              uuid.New().String(),
-		BookingID:       sql.NullString{String: bookingMilestone.BookingID.String, Valid: true},
-		MilestoneStatus: sql.NullString{String: bookingMilestone.MilestoneStatus.String, Valid: true},
-		CreatedAt:       sql.NullString{String: bookingMilestone.CreatedAt.String, Valid: true},
-		CompletedAt:     sql.NullString{String: bookingMilestone.CompletedAt.String, Valid: true},
-	})
-	if err != nil {
-		fmt.Println("error", err)
-		response.ErrorResponse(context, http.StatusBadRequest, "Error inserting Booking milestone")
-		return
-	}
-
-	response.SuccessResponse(context, map[string]interface{}{
-		"code":    "success",
-		"message": "Request Booking milestone Created successfuly",
-		"data":    state,
-	})
-}
-
 func (handler BookingMilestoneHandler) GetBookingMilestone(context *gin.Context) {
+
+	var tokenData interface{}
+	tokenData, isExists := context.Get("claims")
+	if !isExists {
+		response.ErrorResponse(context, http.StatusUnauthorized, "Claims not found in request, request unauthorised")
+		return
+	}
+
+	claims := tokenData.(model.TokenData)
+	if claims.Role == constant.CUSTOMER_ROLE {
+		response.ErrorResponse(context, http.StatusBadRequest, "Customer can't get milestone")
+		return
+	}
 
 	id := context.Request.URL.Query().Get("id")
 
@@ -78,47 +62,48 @@ func (handler BookingMilestoneHandler) GetBookingMilestone(context *gin.Context)
 	})
 }
 
+type UpdateBookingMilestoneRequest struct {
+	ID              string `json:"id"`
+	MilestoneStatus string `json:"milestone_status"`
+	CompletedAt     string `json:"completed_at"`
+}
+
 func (handler BookingMilestoneHandler) UpdateBookingMilestone(context *gin.Context) {
 
-	var bookingMilestone repository.BookingMilestone
+	var tokenData interface{}
+	tokenData, isExists := context.Get("claims")
+	if !isExists {
+		response.ErrorResponse(context, http.StatusUnauthorized, "Claims not found in request, request unauthorised")
+		return
+	}
+
+	claims := tokenData.(model.TokenData)
+
+	if claims.Role == constant.CUSTOMER_ROLE {
+		response.ErrorResponse(context, http.StatusBadRequest, "Customer can't update milestone")
+		return
+	}
+
+	var bookingMilestone UpdateBookingMilestoneRequest
 
 	if err := context.ShouldBind(&bookingMilestone); err != nil {
 		response.ErrorResponse(context, http.StatusBadRequest, "Required fields are empty")
 		return
 	}
 
-	state := handler.queries.UpdateBookingMilestone(context, repository.UpdateBookingMilestoneParams{
+	err := handler.queries.UpdateBookingMilestone(context, repository.UpdateBookingMilestoneParams{
 		ID:              uuid.New().String(),
-		BookingID:       bookingMilestone.BookingID,
-		MilestoneStatus: bookingMilestone.MilestoneStatus,
-		CreatedAt:       bookingMilestone.CreatedAt,
-		CompletedAt:     bookingMilestone.CompletedAt,
+		MilestoneStatus: sql.NullString{String: bookingMilestone.MilestoneStatus, Valid: true},
+		CompletedAt:     sql.NullString{String: bookingMilestone.CompletedAt, Valid: true},
 	})
-
-	// TODO return, nothing to update
-	response.SuccessResponse(context, map[string]interface{}{
-		"code":    "success",
-		"message": "Updated suceessfully",
-		"data":    state,
-	})
-}
-
-func (handler BookingMilestoneHandler) ListBookingMilestone(context *gin.Context) {
-
-	bookingMilestones, err := handler.queries.ListBookingMilestone(context)
 
 	if err != nil {
-		response.SuccessResponse(context, map[string]interface{}{
-			"code":    "success",
-			"message": "Error int get all account",
-			"error":   err,
-		})
+		response.ErrorResponse(context, http.StatusBadRequest, "Unable to update record")
 		return
 	}
 
 	response.SuccessResponse(context, map[string]interface{}{
 		"code":    "success",
-		"message": "Fetched all account list",
-		"data":    bookingMilestones,
+		"message": "Updated suceessfully",
 	})
 }

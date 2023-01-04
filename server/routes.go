@@ -63,15 +63,11 @@ func ConfigureRoutes(server *Server) {
 	auth.GET("/bookings", bookingHandler.ListBookings)
 
 	// Booking milestone APIs
-	auth.POST("/booking_milestone", bookingMilestoneHandler.CreateBookingMilestone)
-	auth.PUT("/update_booking_milestone", bookingMilestoneHandler.UpdateBookingMilestone)
+	auth.PUT("/complete_milestone", bookingMilestoneHandler.UpdateBookingMilestone)
 	auth.GET("/booking_milestone", bookingMilestoneHandler.GetBookingMilestone)
-	auth.GET("/booking_milestones", bookingMilestoneHandler.ListBookingMilestone)
 
 	// Booking task APIS
-	auth.POST("/booking_task", bookingTaskHandler.CreateBookingTask)
-	auth.PUT("/update_booking_task", bookingTaskHandler.UpdateBookingTask)
+	auth.PUT("/complete_task", bookingTaskHandler.UpdateBookingTask)
 	auth.GET("/booking_task", bookingTaskHandler.GetBookingTask)
-	auth.GET("/booking_tasks", bookingTaskHandler.ListBookingTask)
 
 }
